@@ -1,0 +1,13 @@
+# Years selection
+year:
+  first: 2011 # earliest year covered
+  last: 2021 # latest year covered
+  charts: 2021 # year shown in charts
+
+country: FR # country to show in charts (write "all" to run all countries)
+
+# Actions to do
+actions:
+  download: False  # True: download raw data, False: use existing data
+  clear: False # True clears existing charts, False: only replace the ones generated
+

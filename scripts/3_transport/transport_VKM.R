@@ -414,7 +414,7 @@ transport_final <- function(first_year,
     #keep only relevant columns
     select(-c(unit, vehicle, values)) %>%
     # correction
-    mutate(VKM = case_when((geo == 'BG') &
+    mutate(VKM = case_when((geo == "BG") &
                              (time == 2010) ~ 1301900000,
                            TRUE ~ VKM))
 
@@ -484,7 +484,7 @@ transport_final <- function(first_year,
       (VKM == 0 & energy_consumption > 0) ~ NA_real_,
       (VKM == 0 & energy_consumption == 0) ~ 0,
       TRUE ~ energy_consumption / VKM)
-  ) %>%
+      ) %>%
     #for each country and each year
     group_by(geo, time) %>%
     mutate(
@@ -658,7 +658,7 @@ transport_final <- function(first_year,
     if (country_chart == "CY") next
 
     # Long name for the country
-    country_name <- filter(EU_df, code == country_chart)$name
+    country_name <- filter(eu27, code == country_chart)$name
     # Output charts
     outputpath <-
       paste0(chart_path, "/", country_chart, "/")
@@ -1449,7 +1449,7 @@ transport_final <- function(first_year,
     outputpath <- paste0(chart_path, "/EU27/")
 
     # Data coverage chart
-    p <- transport_complete %>%
+    missing_data <- transport_complete %>%
       filter(
         mode != "Total",
         geo != "EU27",
@@ -1464,7 +1464,13 @@ transport_final <- function(first_year,
                )) %>%
       select(-c("energy_consumption", "VKM")) %>%
       group_by(geo, time) %>%
-      summarize(missing = sum(missing)) %>%
+      summarize(missing = sum(missing))
+    
+    write.csv(missing_data,
+              paste0(outputpath, "Part5_missing_data.csv"),
+              row.names = FALSE)
+      
+    p <- missing_data %>%
       ggplot(aes(
         x = reorder(geo, desc(geo)),
         y = factor(time),

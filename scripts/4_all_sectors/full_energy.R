@@ -239,7 +239,7 @@ full_energy_final <- function(first_year,
   
   for (country_chart in countries) {
     # Long name for the country
-    country_name <- filter(EU_df, code == country_chart)$name
+    country_name <- filter(eu27, code == country_chart)$name
     # Output charts
     outputpath <-
       paste0(chart_path, "/", country_chart, "/")

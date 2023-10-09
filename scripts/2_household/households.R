@@ -252,7 +252,7 @@ household_final <- function(first_year,
         O4630,
         O4640,
         O4651,
-        O4652XR5210B,
+        O4652XR5210B, # nolint
         O4669,
         O4671XR5220B,
         O4653,
@@ -628,7 +628,7 @@ household_final <- function(first_year,
   for (country_chart in countries) {
 
     # Long name for the country
-    country_name <- filter(EU_df, code == country_chart)$name
+    country_name <- filter(eu27, code == country_chart)$name
     # Output charts
     outputpath <-
       paste0(chart_path, "/", country_chart, "/")
@@ -1517,7 +1517,7 @@ household_final <- function(first_year,
     outputpath <- paste0(chart_path, "/EU27/")
 
     # Data coverage chart
-    p <- HH_augmented %>%
+    missing_data <- HH_augmented %>%
       filter(
         measure %in% c(
           "space_heating",
@@ -1534,7 +1534,13 @@ household_final <- function(first_year,
                          TRUE ~ 1)) %>%
       select(-measure) %>%
       group_by(geo, time) %>%
-      summarize(missing = sum(missing)) %>%
+      summarize(missing = sum(missing))
+    
+    write.csv(missing_data,
+              paste0(outputpath, "Part3_missing_data.csv"),
+              row.names = FALSE)
+    
+    p <- missing_data %>%
       ggplot(aes(
         x = reorder(geo, desc(geo)),
         y = factor(time),
