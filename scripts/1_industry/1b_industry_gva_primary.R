@@ -8,22 +8,11 @@ industry_GVA_primary <- function(first_year,
                                country,
                                data_path,
                                chart_path) {
+
+  source(path(getwd(), "scripts/1_industry/year_selection.R"))                               
   
   # Define the list as the whole list
   country_list <- geo_codes
-  
-  print('MT first year set to 2012')
-  print('BE last year set to 2020')
-  print('DE last year set to 2020')
-  print('CY last year set to 2020')
-  print('ES last year set to 2020')
-  print('FR last year set to 2020')
-  print('IT last year set to 2020')
-  print('LT last year set to 2020')
-  print('LV last year set to 2020')
-  print('PL last year set to 2020')
-  print('PT last year set to 2020')
-  print('SE last year set to 2020')
   
   # list of end uses sectors, used for the industry subset of the energy balance (nrg_bal_c)
   NRG_IND_SECTORS <- c(

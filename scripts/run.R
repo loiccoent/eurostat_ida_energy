@@ -60,7 +60,7 @@ if (clear) {
 # For EU, generate an additional chart for the comparison among countries
 #full_energy_final(first_year, last_year, country, data_path, output_path)
 industry_GVA_final(first_year, last_year, country, data_path, output_path)
-industry_GVA_primary(first_year, last_year, country, data_path, output_path)
-economy_emp_final(first_year, last_year, country, data_path, output_path)
-household_final(first_year, last_year, country, data_path, output_path)
-transport_final(first_year, last_year, country, data_path, output_path)
+# industry_GVA_primary(first_year, last_year, country, data_path, output_path)
+# economy_emp_final(first_year, last_year, country, data_path, output_path)
+# household_final(first_year, last_year, country, data_path, output_path)
+# transport_final(first_year, last_year, country, data_path, output_path)

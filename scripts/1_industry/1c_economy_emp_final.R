@@ -1,15 +1,5 @@
 # PRIMARY ENERGY CONSUMPTION IN ECONOMY
 
-economy_emp_base_year <- function(country, first_year){
-   case_when(
-        TRUE ~ first_year)
-}
-
-economy_emp_last_year <- function(country, final_year){
-   case_when(
-        TRUE ~ final_year)
-}
-
 # Data preparation
 economy_emp_final <- function(first_year,
                               last_year,

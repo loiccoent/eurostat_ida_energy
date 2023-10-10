@@ -37,3 +37,13 @@ industry_GVA_last_year <- function(country, final_year){
         country == "EU27" ~ 2020,
         TRUE ~ final_year)
 }
+
+economy_emp_base_year <- function(country, first_year){
+   case_when(
+        TRUE ~ first_year)
+}
+
+economy_emp_last_year <- function(country, final_year){
+   case_when(
+        TRUE ~ final_year)
+}
