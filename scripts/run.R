@@ -4,7 +4,6 @@
 
 #install package (if not already done)
 #install.packages("fs")
-#install.packages("here")
 #install.packages("yaml")
 #install.packages("tidyverse")
 #install.packages("tidyr")
@@ -19,7 +18,6 @@
 
 # Load required packages
 library(fs)
-library(here)
 library(yaml)
 library(tidyverse)
 library(tidyr)
