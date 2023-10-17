@@ -7,115 +7,73 @@ full_energy_final <- function(first_year,
                                data_path,
                                chart_path) {
   
+  source(path(getwd(), "scripts/0_support/print_charts.R"))
+  source(path(getwd(), "scripts/4_all_sectors/year_selection.R"))
+  source(path(getwd(), "scripts/4_all_sectors/sectors_mapping.R"))
+  source(path(getwd(), "scripts/4_all_sectors/colors_mapping.R"))
+
   # Define the list as the whole list
   country_list <- geo_codes
-  
-  # Prepare for potential exceptions
-  years_list <- data.frame(geo_codes) %>%
-    mutate(base_year = case_when(TRUE ~ first_year),
-           final_year = case_when(TRUE ~ last_year))
   
   # DATA PREPARATION
   
   # Energy consumption (and supply) from the energy balance (nrg_bal_c)
   load(paste0(data_path, "/nrg_bal_c.Rda"))
   
-  #list of end uses sectors, used for the industry subset the energy balance (nrg_bal_c)
-  #Manufacturing
-  NRG_MAN <- c(
-    "FC_IND_FBT_E",
-    "FC_IND_TL_E",
-    "FC_IND_WP_E",
-    "FC_IND_PPP_E",
-    "NRG_PR_E",
-    "FC_IND_CPC_E",
-    "FC_IND_NMM_E",
-    "FC_IND_IS_E",
-    "NRG_CO_E",
-    "NRG_BF_E",
-    "FC_IND_NFM_E",
-    "FC_IND_MAC_E",
-    "FC_IND_TE_E",
-    "NRG_PF_E",
-    "NRG_BKBPB_E",
-    "NRG_CL_E",
-    "NRG_GTL_E",
-    "NRG_CPP_E",
-    "NRG_NSP_E",
-    "FC_IND_NSP_E"
-  )
-  
-  #Agriculture, forestry and fishing
-  NRG_AGRI <- c("FC_OTH_AF_E",
-                "FC_OTH_FISH_E")
-  
-  #Other industries
-  NRG_OTH <- c(
-    "FC_IND_MQ_E",
-    "NRG_CM_E",
-    "NRG_OIL_NG_E",
-    #"TI_EHG_E", # removed because double counting with electricity
-    "NRG_EHG_E",
-    "NRG_GW_E",
-    "NRG_LNG_E",
-    "NRG_BIOG_E",
-    "NRG_NI_E"
-  )
-  
-  NRG_TRA <- c(
-    "FC_TRA_RAIL_E",
-    "FC_TRA_ROAD_E",
-    "FC_TRA_DNAVI_E"
-  )
-  
-  #list of end uses sectors, used in the subset
-  NRG_FULL_SECTORS <- c(
-    NRG_AGRI,
-    NRG_MAN,
-    NRG_OTH,
-    NRG_TRA,
-    "FC_IND_CON_E",
-    "FC_OTH_CP_E",
-    "FC_OTH_HH_E"
-  )
-  
-  #list of supply items, used in the context
-  NRG_SUPPLY <- c(
-    "PPRD",
-    "IMP",
-    "EXP",
-    "STK_CHG"
-  )
-  
-  #list of end uses sectors, as they will be named in the LMDI results
-  IDA_FULL_SECTORS <- c(
-    #"Agriculture, forestry and fishing",
-    "Agricult., forest. and fish.",
-    "Manufacturing",
-    "Construction",
-    "Other industries",
-    #"Commercial and public services"
-    "Comm. and pub. services",
-    "Residential",
-    "Transport"
-  )
-  
-  # Colors
-  
-  ColorsSector <- c(
-    #"Agriculture, forestry and fishing" = brewer.pal(5, "Set3")[1],
-    "Agricult., forest. and fish." = brewer.pal(7, "Set3")[3],
-    "Manufacturing" = brewer.pal(7, "Set3")[2],
-    "Construction" = brewer.pal(7, "Set3")[1],
-    "Other industries" = brewer.pal(7, "Set3")[4],
-    #"Commercial and public services" = brewer.pal(5, "Set3")[5]
-    "Comm. and pub. services" = brewer.pal(7, "Set3")[5],
-    "Residential" = brewer.pal(7, "Set3")[7],
-    "Transport" = brewer.pal(7, "Set3")[6]
-  )
-  
   # Energy consumption by fuel
-  full_energy_context <-  nrg_bal_c %>%
+  full_energy_context <- prepare_full_energy_context(first_year = first_year,
+                                                         last_year = last_year,
+                                                         nrg_bal_c = nrg_bal_c,
+                                                         country_list = country_list)
+
+  # Energy consumption by fuel
+  full_energy_breakdown <- prepare_full_energy_breakdown(first_year = first_year,
+                                                         last_year = last_year,
+                                                         nrg_bal_c = nrg_bal_c,
+                                                         country_list = country_list)
+  
+  ### CHARTS ###
+  
+  if (country == "all") {
+    countries <- geo_codes
+  } else {
+    countries <- country
+  }
+  
+  for (country_chart in countries) {
+    # Long name for the country
+    country_name <- ifelse(country_chart == "EU27", "EU27", filter(eu27, code == country_chart)$name)
+    # Output charts
+    output_path <- paste0(chart_path, "/", country_chart, "/")
+    # first and last year shown in charts
+    first_year_chart <- full_sector_base_year(country = country_chart, first_year = first_year)
+    last_year_chart <- full_sector_last_year(country = country_chart, final_year = last_year)
+
+    # Energy consumption by subsector
+    
+    generate_table_full_energy_context(full_energy_context,
+                                      country_chart = country_chart,
+                                     country_name = country_name,
+                                     first_year = first_year,
+                                     last_year = last_year,
+                                     output_path = output_path)
+
+    generate_full_energy_breakdown_charts(full_energy_breakdown,
+                                      country_chart = country_chart,
+                                     country_name = country_name,
+                                     first_year = first_year,
+                                     last_year = last_year,
+                                     output_path = output_path)
+  }
+
+}
+
+prepare_full_energy_context <- function(first_year,
+                                        last_year ,
+                                        nrg_bal_c,
+                                        country_list){
+
+  nrg_bal_c %>%
     filter(
       geo %in% country_list,
       #from first year
@@ -129,9 +87,14 @@ full_energy_final <- function(first_year,
       unit == "TJ"
     ) %>%
     select(c("geo", "time", "nrg_bal", "values"))
-  
-  # Energy consumption by fuel
-  full_energy_breakdown <-  nrg_bal_c %>%
+
+}
+
+prepare_full_energy_breakdown  <- function(first_year,
+                                          last_year ,
+                                          nrg_bal_c,
+                                          country_list){
+  nrg_bal_c %>%
     filter(
       geo %in% country_list,
       #from first year
@@ -228,39 +191,29 @@ full_energy_final <- function(first_year,
     ) 
     # Remove the total columns, not required any longer
     #select(-c(total_energy_consumption)) 
+}
+
+generate_table_full_energy_context <- function(full_energy_context,
+                                               country_chart,
+                                               country_name,
+                                               first_year,
+                                               last_year,
+                                               output_path){
+  # Table used to provide figures in the text of the report
+  table_full_energy_context <- full_energy_context %>%
+    filter(geo == country_chart) %>%
+    mutate(values = round(values, 1))
   
-  ### CHARTS ###
-  
-  if (country == "all") {
-    countries <- geo_codes
-  } else {
-    countries <- country
-  }
-  
-  for (country_chart in countries) {
-    # Long name for the country
-    country_name <- filter(eu27, code == country_chart)$name
-    # Output charts
-    outputpath <-
-      paste0(chart_path, "/", country_chart, "/")
-    # first and last year shown in charts
-    first_year_chart <-
-      years_list$base_year[geo_codes == country_chart]
-    last_year_chart <-
-      years_list$final_year[geo_codes == country_chart]
-    
-    # Energy consumption by subsector
-    
-    # Table used to provide figures in the text of the report
-    table_full_energy_context <- full_energy_context %>%
-      filter(
-        geo == country_chart
-      ) %>%
-      mutate(values = round(values, 1))
-    
-    write.csv(table_full_energy_context, paste0(outputpath, "Context.csv"), row.names = FALSE)
-    
-    # Table used to provide figures in the text of the report
+  write.csv(table_full_energy_context, paste0(output_path, "Context.csv"), row.names = FALSE)
+}
+
+generate_full_energy_breakdown_charts <- function(full_energy_breakdown,
+                                                  country_chart,
+                                                  country_name,
+                                                  first_year,
+                                                  last_year,
+                                                  output_path) {
+  # Table used to provide figures in the text of the report
     table_full_energy_breakdown <- full_energy_breakdown %>%
       filter(
         geo == country_chart
@@ -268,7 +221,7 @@ full_energy_final <- function(first_year,
       mutate(energy_consumption = round(energy_consumption, 1),
              share_energy_consumption = round(share_energy_consumption, 3))
     
-    write.csv(table_full_energy_breakdown, paste0(outputpath, "Intro.csv"), row.names = FALSE)
+    write.csv(table_full_energy_breakdown, paste0(output_path, "Intro.csv"), row.names = FALSE)
     
     full_energy_breakdown_filtered_data <-
       full_energy_breakdown %>%
@@ -279,9 +232,7 @@ full_energy_final <- function(first_year,
       ) %>%
       mutate(sector = factor(sector, levels = IDA_FULL_SECTORS))
     
-    year <-
-      as.Date(as.character(full_energy_breakdown_filtered_data$time),
-              "%Y")
+    year <- as.Date(as.character(full_energy_breakdown_filtered_data$time), "%Y")
     
     p <- full_energy_breakdown_filtered_data %>%
       cbind(year) %>%
@@ -301,25 +252,18 @@ full_energy_final <- function(first_year,
       guides(fill=guide_legend(ncol=3)) + 
       scale_x_continuous(breaks = c(first_year,round((first_year+last_year)/2), last_year)) +
       scale_y_continuous(labels = scales::number) +
-      ylab(paste("Energy consumption (PJ)"))
-    #ggtitle(paste("Industry energy consumption by subsector for",country_name))
+      ylab(paste("Energy consumption (PJ)")) + 
+      ggtitle(paste("Industry energy consumption by subsector for",country_name))
     
-    filename <- paste0(country_chart, "_Figure01.jpg")
-    print(filename)
-    
-    jpeg(
-      file = paste0(outputpath, filename),
+    print_chart(p,
+      filename = paste0(country_chart, "_Figure01.jpg"),
+      output_path = output_path,
       width = 2400,
       height = 2400,
-      res = 300
-    )
-    
-    print(p)
-    
-    dev.off()
+      res = 300)
     
     p <- full_energy_breakdown_filtered_data %>%
-      filter(time %in% c(first_year_chart, last_year_chart),
+      filter(time %in% c(first_year, last_year),
              geo == country_chart,
              sector != "Total") %>%
       mutate(sector = factor(sector, levels = IDA_FULL_SECTORS))  %>%
@@ -338,23 +282,14 @@ full_energy_final <- function(first_year,
       scale_y_continuous(labels = scales::percent) +
       geom_text(aes(label = paste0(round(share_energy_consumption*100, 0), "%")), 
                 position = position_stack(vjust = 0.5)) +
-      ylab(paste("Share of energy consumption"))
-    # ggtitle(paste("Industry energy consumption by subsector for",country_name))
+      ylab(paste("Share of energy consumption")) + 
+      ggtitle(paste("Industry energy consumption by subsector for",country_name))
     
-    filename <- paste0(country_chart, "_Figure01B.jpg")
-    print(filename)
-    
-    jpeg(
-      file = paste0(outputpath, filename),
-      width = 2400,
-      height = 2400,
-      res = 300
-    )
-    
-    print(p)
-    
-    dev.off()
-    
-  }
+      print_chart(p,
+              filename = paste0(country_chart, "_Figure01B.jpg"),
+              output_path = output_path,
+              width = 2400,
+              height = 2400,
+              res = 300)
 
 }

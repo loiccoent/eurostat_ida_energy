@@ -1,4 +1,5 @@
 library(fs)
+library(tidyr)
 # FINAL ENERGY CONSUMPTION IN INDUSTRY
 
 # Data preparation
@@ -99,13 +100,15 @@ industry_GVA_final <- function(first_year,
                               country_name = country_name,
                               country_chart = country_chart,
                               first_year_chart = first_year_chart,
-                              last_year_chart = last_year_chart)
+                              last_year_chart = last_year_chart,
+                              output_path = output_path)
 
     generate_energy_breakdown_charts(industry_energy_breakdown,
                                      country_chart = country_chart,
                                      country_name = country_name,
                                      first_year = first_year,
-                                     last_year = last_year)
+                                     last_year = last_year,
+                                     output_path = output_path)
 
     generate_final_effects_charts(industry_GVA_final_LMDI,
                                   country_chart = country_chart,
@@ -114,7 +117,8 @@ industry_GVA_final <- function(first_year,
                                   first_year = first_year,
                                   last_year = last_year,
                                   first_year_chart = first_year_chart,
-                                  last_year_chart = last_year_chart)
+                                  last_year_chart = last_year_chart,
+                                  output_path = output_path)
   }
 
   if (country == "EU27") {
@@ -849,7 +853,8 @@ generate_subsectors_charts <- function(industry_GVA_final_full,
                                       country_chart,
                                       country_name,
                                       first_year_chart,
-                                      last_year_chart) {
+                                      last_year_chart,
+                                      output_path) {
   # full data (after filtering)
   industry_GVA_final_subsector <-
     industry_GVA_final_full %>%
@@ -1042,7 +1047,8 @@ generate_energy_breakdown_charts <- function(industry_energy_breakdown,
                                             country_chart,
                                             country_name,
                                             first_year,
-                                            last_year) {
+                                            last_year,
+                                            output_path) {
   # Breakdown of energy consumption by fuel
   industry_energy_breakdown_filtered <-
       industry_energy_breakdown %>%
@@ -1084,7 +1090,7 @@ generate_energy_breakdown_charts <- function(industry_energy_breakdown,
       scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
       scale_y_continuous(labels = scales::number) +
       ylab(paste("Energy consumption (PJ)")) +
-      ggtitle(paste("Industry energy consumption by fuel for ", country_name))
+      ggtitle(paste("Industry energy consumption by fuel for", country_name))
 
   print_chart(p,
             filename = paste0(country_chart, "_Figure02.jpg"),
@@ -1118,7 +1124,7 @@ generate_energy_breakdown_charts <- function(industry_energy_breakdown,
         aes(label = paste0(round(share_energy_consumption * 100, 0), "%")),
         position = position_stack(vjust = 0.5)) +
       ylab(paste("Share in final energy consumption")) +
-      ggtitle(paste("Industry energy consumption by fuel for ", country_name))
+      ggtitle(paste("Industry energy consumption by fuel for", country_name))
 
   print_chart(p,
             filename = paste0(country_chart, "_Figure02B.jpg"),
@@ -1135,7 +1141,8 @@ generate_final_effects_charts <- function(industry_GVA_final_LMDI,
                                           first_year,
                                           last_year,
                                           first_year_chart,
-                                          last_year_chart) {
+                                          last_year_chart,
+                                          output_path) {
   # Simple effect decomposition
 
   # prepare data for the simple effect chart
