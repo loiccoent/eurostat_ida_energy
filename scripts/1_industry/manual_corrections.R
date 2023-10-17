@@ -35,7 +35,7 @@ apply_gva_corrections <- function(df){
 
 }
 
-filter_industry_GVA_final <- function(df){
+filter_industry_GVA <- function(df){
   df <- df %>%
         filter(!(geo == 'EE' & sector == 'Coke and ref. pet. products'),
             !(geo == 'IE' & sector %in% c('Coke and ref. pet. products',

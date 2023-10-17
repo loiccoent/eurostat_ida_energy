@@ -1,18 +1,32 @@
 library(RColorBrewer)
 
-ColorsIndex <- c(
+IndustryGVAColorsIndex <- c(
     "Energy consumption" = "blue4",
     "Gross Value Added" = "red4",
     "Energy intensity" = "green4"
   )
-  
-ColorsEffect <- c(
+
+IndustryGVAPrimaryColorsIndex <- c(
+  "Primary energy consumption" = "blue4",
+  "Gross Value Added"  = "red4",
+  "Final energy intensity" = "green4",
+  "Primary to final energy transformation" = "yellow4"
+)
+
+IndustryGVAColorsEffect <- c(
 "Activity" = "red4",
 "Intensity" = "green4",
 "Structure" = "purple4"
 )
 
-ColorsSector <- c(
+IndustryGVAPrimaryColorsEffect <- c(
+  "Activity" = "red4",
+  "Intensity"  = "green4",
+  "Structure" = "purple4",
+  "Transformation" = "yellow4"
+)
+
+IndustryGVAColorsSector <- c(
 "Construction" = brewer.pal(12, "Set3")[1],
 "Mining and quarrying" = brewer.pal(12, "Set3")[2],
 #"Food, beverages and tobacco" = brewer.pal(12, "Set3")[3],
@@ -31,7 +45,7 @@ ColorsSector <- c(
 "Other manufacturing" = "grey"
 )
 
-ColorsProduct <- c(
+IndustryGVAColorsProduct <- c(
 "Coal" = brewer.pal(10, "Set3")[10],
 "Oil" = brewer.pal(10, "Set3")[6],
 "Gas" = brewer.pal(10, "Set3")[8],
@@ -42,4 +56,17 @@ ColorsProduct <- c(
 "Wind, solar, geothermal, etc." = brewer.pal(10, "Set3")[1],
 "Heat" = brewer.pal(10, "Set3")[4],
 "Electricity" = brewer.pal(10, "Set3")[3]
+)
+
+IndustryGVAPrimaryColorsProduct <- c(
+  "Coal" = brewer.pal(10, "Set3")[10],
+  "Oil" = brewer.pal(10, "Set3")[6],
+  "Gas" = brewer.pal(10, "Set3")[8],
+  "Biofuels and renewable wastes" = brewer.pal(10, "Set3")[7],
+  "Non-renewable wastes" = brewer.pal(10, "Set3")[9],
+  "Nuclear" = brewer.pal(10, "Set3")[2],
+  "Hydro" = brewer.pal(10, "Set3")[5],
+  "Wind, solar, geothermal, etc." = brewer.pal(10, "Set3")[1],
+  "Heat" = brewer.pal(10, "Set3")[4],
+  "Electricity" = brewer.pal(10, "Set3")[3]
 )

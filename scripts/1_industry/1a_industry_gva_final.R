@@ -45,7 +45,7 @@ industry_GVA_final <- function(first_year,
                                        last_year = last_year,
                                        nama_10_a64 = nama_10_a64,
                                        country_list = country_list) %>%
-                                        apply_gva_corrections()
+                                      apply_gva_corrections()
 
   # Joining datasets
   industry_GVA_final_complete <- full_join(industry_GVA,
@@ -54,7 +54,7 @@ industry_GVA_final <- function(first_year,
                                           prepare_industry_GVA_final_complete()
 
   # filter out sectors with incomplete data
-  industry_GVA_final_filtered <- filter_industry_GVA_final(industry_GVA_final_complete)
+  industry_GVA_final_filtered <- filter_industry_GVA(industry_GVA_final_complete)
 
   industry_GVA_final_augmented <- augment_industry_GVA_final(industry_GVA_final_filtered)
 
@@ -633,7 +633,7 @@ generate_country_charts <- function(industry_GVA_final_complete,
     mutate(year = lubridate::year(year)) %>%
     ggplot(aes(x = year, y = energy_consumption / 1000)) +
     geom_bar(aes(fill = sector), stat = "identity") +
-    scale_fill_manual(values = ColorsSector, limits = force) +
+    scale_fill_manual(values = IndustryGVAColorsSector, limits = force) +
     theme_classic() +
     theme(
       axis.title.x = element_blank(),
@@ -664,7 +664,7 @@ generate_country_charts <- function(industry_GVA_final_complete,
                 y = share_energy_consumption,
                 fill = sector)) +
     geom_bar(position = "fill", stat = "identity") +
-    scale_fill_manual(values = ColorsSector, limits = force) +
+    scale_fill_manual(values = IndustryGVAColorsSector, limits = force) +
     theme_classic() +
     theme(
       axis.title.x = element_blank(),
@@ -695,7 +695,7 @@ generate_country_charts <- function(industry_GVA_final_complete,
     mutate(year = lubridate::year(year)) %>%
     ggplot(aes(x = year, y = GVA / 1000)) +
     geom_bar(aes(fill = sector), stat = "identity") +
-    scale_fill_manual(values = ColorsSector, limits = force) +
+    scale_fill_manual(values = IndustryGVAColorsSector, limits = force) +
     theme_classic() +
     theme(
       axis.title.x = element_blank(),
@@ -726,7 +726,7 @@ generate_country_charts <- function(industry_GVA_final_complete,
                 fill = sector
                 )) +
     geom_bar(position = "fill", stat = "identity") +
-    scale_fill_manual(values = ColorsSector, limits = force) +
+    scale_fill_manual(values = IndustryGVAColorsSector, limits = force) +
     theme_classic() +
     theme(
       axis.title.x = element_blank(),
@@ -895,7 +895,7 @@ generate_subsectors_charts <- function(industry_GVA_final_full,
       ggplot() +
       geom_blank(aes(x = year)) +
       geom_line(aes(x = year, y = value, color = measure), size = 1) +
-      scale_color_manual(values = ColorsIndex) +
+      scale_color_manual(values = IndustryGVAColorsIndex) +
       theme_classic() +
       theme(
         axis.title.x = element_blank(),
@@ -929,7 +929,7 @@ generate_subsectors_charts <- function(industry_GVA_final_full,
       ggplot() +
       geom_blank(aes(x = year)) +
       geom_line(aes(x = year, y = value_indexed, color = sector), size = 1) +
-      scale_color_manual(values = ColorsSector, limits = force) +
+      scale_color_manual(values = IndustryGVAColorsSector, limits = force) +
       theme_classic() +
       theme(
         axis.title.x = element_blank(),
@@ -1077,7 +1077,7 @@ generate_energy_breakdown_charts <- function(industry_energy_breakdown,
       mutate(year = lubridate::year(year)) %>%
       ggplot(aes(x = year, y = energy_consumption / 1000)) +
       geom_bar(aes(fill = product), stat = "identity") +
-      scale_fill_manual(values = ColorsProduct, limits = force) +
+      scale_fill_manual(values = IndustryGVAColorsProduct, limits = force) +
       theme_classic() +
       theme(
         axis.title.x = element_blank(),
@@ -1109,7 +1109,7 @@ generate_energy_breakdown_charts <- function(industry_energy_breakdown,
         fill = product
         )) +
       geom_bar(position = "fill", stat = "identity") +
-      scale_fill_manual(values = ColorsProduct, limits = force) +
+      scale_fill_manual(values = IndustryGVAColorsProduct, limits = force) +
       theme_classic() +
       theme(
         axis.title.x = element_blank(),
@@ -1180,7 +1180,7 @@ generate_final_effects_charts <- function(industry_GVA_final_LMDI,
                     y = value / 1000)) +
       geom_bar(aes(fill = Effect),
                stat = "identity") +
-      scale_fill_manual(values = ColorsEffect, limits = force) +
+      scale_fill_manual(values = IndustryGVAColorsEffect, limits = force) +
       geom_point(data = industry_GVA_final_results,
                  aes(y = value / 1000),
                  size = 3) +
