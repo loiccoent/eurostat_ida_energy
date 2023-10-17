@@ -41,24 +41,14 @@ source(path(getwd(), "scripts/2_household/households.R"))
 source(path(getwd(), "scripts/3_transport/transport_vkm.R"))
 source(path(getwd(), "scripts/4_all_sectors/full_energy.R"))
 
-# Get the Eurostat data (either download it or work with the data saved locally)
-if (download) {
-  # Download all the data from Eurostat website
-  download_eurostat_data(first_year, last_year, data_path)
-}
-
-# Clean the folder first
-if (clear) {
-  # Download all the data from Eurostat website
-  clear_all("all", output_path)
-}
-
-# Calculate all the required indicators,
-# Generate the charts by country
-# For EU, generate an additional chart for the comparison among countries
-full_energy_final(first_year, last_year, country, data_path, output_path)
-# industry_GVA_final(first_year, last_year, country, data_path, output_path)
-# industry_GVA_primary(first_year, last_year, country, data_path, output_path)
-# economy_emp_final(first_year, last_year, country, data_path, output_path)
-# household_final(first_year, last_year, country, data_path, output_path)
-# transport_final(first_year, last_year, country, data_path, output_path)
+# If requested, download all the data from Eurostat website
+if (download) {download_eurostat_data(first_year, last_year, data_path)}
+# If requested, clean the folder first
+if (clear) {clear_all(country, output_path)}
+# If requested, calculate all the required indicators, Generate the charts by country
+if (run_context) {full_energy_final(first_year, last_year, country, data_path, output_path)}
+if (run_industry_GVA_final) {industry_GVA_final(first_year, last_year, country, data_path, output_path)}
+if (run_industry_GVA_primary) {industry_GVA_primary(first_year, last_year, country, data_path, output_path)}
+if (run_economy_emp_final) {economy_emp_final(first_year, last_year, country, data_path, output_path)}
+if (run_household_final) {household_final(first_year, last_year, country, data_path, output_path)}
+if (run_transport_final) {transport_final(first_year, last_year, country, data_path, output_path)}
