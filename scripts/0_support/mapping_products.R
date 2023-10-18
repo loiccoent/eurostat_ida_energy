@@ -91,7 +91,7 @@ NRG_PRODS <- c(
 )
 
 # list of products, as they will be named in the charts
-IDA_IND_PROD <- c(
+IDA_FINAL_PROD <- c(
   "Coal",
   "Oil",
   "Gas",
@@ -105,7 +105,7 @@ IDA_IND_PROD <- c(
 )
 
 # list of products, as they will be named in the charts
-IDA_IND_PRIMARY_PROD <- c(
+IDA_PRIMARY_PROD <- c(
   "Coal",
   "Oil",
   "Gas",

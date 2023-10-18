@@ -8,9 +8,9 @@ full_energy_final <- function(first_year,
                                chart_path) {
   
   source(path(getwd(), "scripts/0_support/print_charts.R"))
-  source(path(getwd(), "scripts/4_all_sectors/year_selection.R"))
-  source(path(getwd(), "scripts/4_all_sectors/sectors_mapping.R"))
-  source(path(getwd(), "scripts/4_all_sectors/colors_mapping.R"))
+  source(path(getwd(), "scripts/0_support/year_selection.R"))
+  source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
+  source(path(getwd(), "scripts/0_support/mapping_colors.R"))
 
   # Define the list as the whole list
   country_list <- geo_codes
@@ -240,7 +240,7 @@ generate_full_energy_breakdown_charts <- function(full_energy_breakdown,
       mutate(year = lubridate::year(year)) %>%
       ggplot(aes(x = year, y = energy_consumption / 1000)) +
       geom_bar(aes(fill = sector), stat = "identity") +
-      scale_fill_manual(values = ColorsSector) +
+      scale_fill_manual(values = AllSectorsColors) +
       theme_classic() +
       theme(
         axis.title.x = element_blank(),
@@ -269,7 +269,7 @@ generate_full_energy_breakdown_charts <- function(full_energy_breakdown,
       mutate(sector = factor(sector, levels = IDA_FULL_SECTORS))  %>%
       ggplot(aes(x = factor(time), y = share_energy_consumption, fill = sector)) +
       geom_bar(position = "fill", stat = "identity") +
-      scale_fill_manual(values = ColorsSector) +
+      scale_fill_manual(values = AllSectorsColors) +
       theme_classic() +
       theme(
         axis.title.x = element_blank(),
