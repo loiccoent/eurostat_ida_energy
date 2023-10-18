@@ -153,6 +153,7 @@ NRG_ECO_SECTORS <- c(
     "FC_OTH_CP_E"
 )
 
+#list of transport mode, used for the transport subset of the energy balance (nrg_bal_c)
 NRG_TRA <- c(
     "FC_TRA_RAIL_E",
     "FC_TRA_ROAD_E",
@@ -229,3 +230,8 @@ measure_list <- c(
 	"Total",
 	end_use_list
 )
+
+#list of end uses modes, as they will be named in the LMDI results
+IDA_TRA_MODES <- c("Road",
+                    "Rail",
+                    "Navigation")

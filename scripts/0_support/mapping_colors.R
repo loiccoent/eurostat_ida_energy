@@ -20,11 +20,17 @@ EconomyEmploymentColorsIndex <- c(
 )
 
 HouseholdColorsIndex <- c(
-	"Energy consumption" = "blue4",
-	"Population" = "red4",
-	"Dwelling per capita" = "purple4",
-	"Energy per dwelling" = "green4",
-	"Weather" = "yellow4"
+    "Energy consumption" = "blue4",
+    "Population" = "red4",
+    "Dwelling per capita" = "purple4",
+    "Energy per dwelling" = "green4",
+    "Weather" = "yellow4"
+)
+
+TransportColorsIndex <- c(
+    "Energy consumption" = "blue4",
+    "Traffic" = "red4",
+    "Energy intensity" = "green4"
 )
 
 IndustryGVAColorsEffect <- c(
@@ -59,10 +65,16 @@ AllSectorsColors <- c(
 )
 
 HouseholdColorsEffect <- c(
-	"Population" = "red4",
-	"Energy per dwelling" = "green4",
-	"Dwelling per capita" = "purple4",
-	"Weather" = "yellow4"
+    "Population" = "red4",
+    "Energy per dwelling" = "green4",
+    "Dwelling per capita" = "purple4",
+    "Weather" = "yellow4"
+)
+
+TransportColorsEffect <- c(
+    "Activity" = "red4",
+    "Intensity" = "green4",
+    "Structure" = "purple4"
 )
 
 ManufacturingSectorsColors <- c(
@@ -121,10 +133,36 @@ PrimaryProductsColors <- c(
 )
 
 EndUseColors <- c(
-	"Space heating" = brewer.pal(6, "Set3")[6],
-	"Space cooling" = brewer.pal(6, "Set3")[5],
-	"Water heating" = brewer.pal(6, "Set3")[4],
-	"Cooking" = brewer.pal(6, "Set3")[3],
-	"Lighting and appliances" = brewer.pal(6, "Set3")[2],
-	"Other" = brewer.pal(6, "Set3")[1]
+    "Space heating" = brewer.pal(6, "Set3")[6],
+    "Space cooling" = brewer.pal(6, "Set3")[5],
+    "Water heating" = brewer.pal(6, "Set3")[4],
+    "Cooking" = brewer.pal(6, "Set3")[3],
+    "Lighting and appliances" = brewer.pal(6, "Set3")[2],
+    "Other" = brewer.pal(6, "Set3")[1]
+)
+
+TransportModeColors <- c(
+    "Road" = brewer.pal(3, "Set3")[1],
+    "Rail" = brewer.pal(3, "Set3")[2],
+    "Navigation" = brewer.pal(3, "Set3")[3]
+)
+
+TransportProductColors <- c(
+    "Coal" = brewer.pal(12, "Set3")[10],
+    "Gasoline" = brewer.pal(12, "Paired")[1],
+    "Biogasoline" = brewer.pal(12, "Paired")[2],
+    "Diesel" = brewer.pal(12, "Paired")[7],
+    "Biodiesel" = brewer.pal(12, "Paired")[8],
+    "LPG" = brewer.pal(12, "Paired")[9],
+    "Kerosene" = brewer.pal(12, "Paired")[10],
+    "Other oil products" = brewer.pal(12, "Paired")[11],
+    "Other liquid biofuels" = brewer.pal(12, "Paired")[12],
+    "Gas" = brewer.pal(12, "Set3")[8],
+    "Biogas" = brewer.pal(12, "Paired")[6],
+    "Solid biofuels and wastes" = brewer.pal(12, "Paired")[4],
+    # "Nuclear" = brewer.pal(10, "Set3")[2],
+    # "Hydro" = brewer.pal(10, "Set3")[5],
+    # "Wind, solar, geothermal, etc." = brewer.pal(10, "Set3")[1],
+    # "Heat" = brewer.pal(10, "Set3")[4],
+    "Electricity" = brewer.pal(12, "Set3")[3]
 )

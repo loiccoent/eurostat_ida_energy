@@ -86,3 +86,19 @@ filter_industry_GVA <- function(df) {
 
     df
 }
+
+apply_vkm_corrections <- function(df) {
+    df <- df %>%
+        mutate(VKM = case_when(
+            (geo == "BG") &
+                (time == 2010) ~ 1301900000,
+            TRUE ~ VKM
+        ))
+
+    print("BG 2010 road traffic correction")
+
+    df
+}
+
+# Skipped because only data for 2011
+transport_skipped_countries <- c("CY")
