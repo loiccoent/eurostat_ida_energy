@@ -29,7 +29,7 @@ library(waterfalls)
 library("ggpubr")
 
 rm()
-
+setwd(path(dirname(here())))
 # Source parameters and functions
 source(path(getwd(), "scripts/0_support/parameters.R"))
 source(path(getwd(), "scripts/0_support/data_download.R"))
