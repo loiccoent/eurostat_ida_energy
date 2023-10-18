@@ -26,4 +26,4 @@ run_transport_final <- config$actions$transport_final
 
 # Set paths
 data_path <- path(getwd(), "data/raw")
-output_path <- path(getwd(), "output")
+output_path <- path(getwd(), "data/output")
