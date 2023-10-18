@@ -19,6 +19,14 @@ EconomyEmploymentColorsIndex <- c(
     "Energy consumption per employee" = "green4"
 )
 
+HouseholdColorsIndex <- c(
+	"Energy consumption" = "blue4",
+	"Population" = "red4",
+	"Dwelling per capita" = "purple4",
+	"Energy per dwelling" = "green4",
+	"Weather" = "yellow4"
+)
+
 IndustryGVAColorsEffect <- c(
     "Activity" = "red4",
     "Intensity" = "green4",
@@ -48,6 +56,13 @@ AllSectorsColors <- c(
     "Comm. and pub. services" = brewer.pal(7, "Set3")[5],
     "Residential" = brewer.pal(7, "Set3")[7],
     "Transport" = brewer.pal(7, "Set3")[6]
+)
+
+HouseholdColorsEffect <- c(
+	"Population" = "red4",
+	"Energy per dwelling" = "green4",
+	"Dwelling per capita" = "purple4",
+	"Weather" = "yellow4"
 )
 
 ManufacturingSectorsColors <- c(
@@ -103,4 +118,13 @@ PrimaryProductsColors <- c(
     "Wind, solar, geothermal, etc." = brewer.pal(10, "Set3")[1],
     "Heat" = brewer.pal(10, "Set3")[4],
     "Electricity" = brewer.pal(10, "Set3")[3]
+)
+
+EndUseColors <- c(
+	"Space heating" = brewer.pal(6, "Set3")[6],
+	"Space cooling" = brewer.pal(6, "Set3")[5],
+	"Water heating" = brewer.pal(6, "Set3")[4],
+	"Cooking" = brewer.pal(6, "Set3")[3],
+	"Lighting and appliances" = brewer.pal(6, "Set3")[2],
+	"Other" = brewer.pal(6, "Set3")[1]
 )

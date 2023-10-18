@@ -70,3 +70,14 @@ economy_emp_last_year <- function(country, final_year) {
     )
     year
 }
+
+household_base_year <- function(country, first_year){
+   case_when(
+        TRUE ~ first_year)
+}
+
+household_last_year <- function(country, final_year){
+   case_when(
+     country == "HU" ~ 2019,
+        TRUE ~ final_year)
+}
