@@ -34,7 +34,6 @@ industry_GVA_final <- function(first_year,
         country_list = country_list
     )
 
-
     # energy consumption (and supply) from the energy balance (nrg_bal_c)
     industry_energy_final <- prepare_industry_energy_final(
         first_year = first_year,

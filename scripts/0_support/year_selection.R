@@ -27,6 +27,7 @@ industry_GVA_last_year <- function(country, final_year) {
     # if(country=="BE"){print("BE last year set to 2020")}
     # if(country=="DE"){print("DE last year set to 2020")}
     # if(country=="CY"){print("CY last year set to 2020")}
+    # if(country=="DK"){print("DK last year set to 2020")}
     # if(country=="ES"){print("ES last year set to 2020")}
     # if(country=="FR"){print("FR last year set to 2020")}
     # if(country=="IT"){print("IT last year set to 2020")}
@@ -43,6 +44,7 @@ industry_GVA_last_year <- function(country, final_year) {
         country == "BE" ~ 2020,
         country == "DE" ~ 2020,
         country == "CY" ~ 2020,
+        country == "DK" ~ 2020,
         country == "ES" ~ 2020,
         country == "FR" ~ 2020,
         country == "IT" ~ 2020,
