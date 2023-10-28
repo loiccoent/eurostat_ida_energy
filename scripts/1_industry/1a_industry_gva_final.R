@@ -73,7 +73,7 @@ industry_GVA_final <- function(
     # Copy the dataframe to store all the values indexed on the base year
     industry_GVA_final_full <- industry_GVA_final_augmented %>%
         rbind(industry_GVA_final_total) %>%
-        add_index_delta()
+        add_index_delta_final()
 
     # Effects calculation
 
@@ -460,7 +460,7 @@ add_total_sector_final <- function(df) {
         mutate(sector = "Total")
 }
 
-add_index_delta <- function(df) {
+add_index_delta_final <- function(df) {
     df %>%
         # calculate intensity again, to include the total intensity
         mutate(intensity = case_when(

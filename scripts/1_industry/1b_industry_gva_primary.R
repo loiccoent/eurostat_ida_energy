@@ -95,140 +95,12 @@ industry_GVA_primary <- function(
     # Copy the dataframe to store all the values indexed on the base year
     industry_GVA_primary_full <- industry_GVA_primary_augmented %>%
         rbind(industry_GVA_primary_total) %>%
-        # calculate intensity again, to include the total intensity
-        mutate(
-            intensity = case_when(
-                (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
-                (GVA == 0 & final_energy_consumption == 0) ~ 0,
-                TRUE ~ final_energy_consumption / GVA
-            ),
-            transformation = case_when(
-                (primary_energy_consumption > 0 & final_energy_consumption == 0) ~ NA_real_,
-                (primary_energy_consumption == 0 & final_energy_consumption == 0) ~ 0,
-                TRUE ~ primary_energy_consumption / final_energy_consumption
-            )
-        ) %>%
-        pivot_longer(
-            cols = -c(geo, time, sector),
-            names_to = "measure",
-            values_to = "value"
-        ) %>%
-        group_by(geo, sector, measure) %>%
-        mutate(
-            value_indexed = case_when(
-                value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)] == 0 ~ 0,
-                is.na(value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)]) ~ NA_real_,
-                TRUE ~ value / value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)]
-            ),
-            value_delta = value - value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)],
-            time = as.integer(time)
-        ) %>%
-        ungroup()
+        add_index_delta_primary()
 
     # Effects calculation
 
     # Calculate the effects using the LMDI formulas
-    industry_GVA_primary_LMDI <- industry_GVA_primary_full %>%
-        # Reshape to wide (moving all measures calculated in Value, index and delta, all in separate columns)
-        pivot_wider(
-            names_from = measure,
-            values_from = c(value, value_indexed, value_delta)
-        ) %>%
-        # Calculate the effects
-        mutate(
-            # the weighting factor links the effect calculated on the indexed variation to the total energy consumption variation
-            weighting_factor = ifelse(
-                value_delta_primary_energy_consumption == 0,
-                value_primary_energy_consumption,
-                value_delta_primary_energy_consumption / log(value_indexed_primary_energy_consumption)
-            ),
-            # Apply natural logarithm to the indexed values for each sub sectors
-            activity_log = ifelse(value_indexed_GVA == 0, 0, log(value_indexed_GVA)),
-            structure_log = ifelse(value_indexed_share_GVA == 0, 0, log(value_indexed_share_GVA)),
-            intensity_log = ifelse(value_indexed_intensity == 0, 0, log(value_indexed_intensity)),
-            transformation_log = ifelse(value_indexed_transformation == 0, 0, log(value_indexed_transformation))
-        ) %>%
-        # Keep only the relevant columns
-        select(
-            geo,
-            time,
-            sector,
-            weighting_factor,
-            value_primary_energy_consumption,
-            value_delta_primary_energy_consumption,
-            activity_log,
-            structure_log,
-            intensity_log,
-            transformation_log
-        ) %>%
-        # The baseline figures need to be expanded across all sub sectors, and across all years
-        rowwise() %>%
-        mutate(base_year = industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)) %>%
-        ungroup() %>%
-        group_by(geo) %>%
-        mutate(
-            value_primary_energy_consumption_total_baseline = value_primary_energy_consumption[sector == "Total" & time == base_year]
-        ) %>%
-        ungroup() %>%
-        # Similarly, the figures calculated for the total sector and the end figures need to be expanded across all subsectors
-        group_by(geo, time) %>%
-        mutate(
-            activity_log_total = activity_log[sector == "Total"],
-            value_delta_primary_energy_consumption_total = value_delta_primary_energy_consumption[sector == "Total"],
-            value_primary_energy_consumption_total_end = value_primary_energy_consumption[sector == "Total"]
-        ) %>%
-        ungroup() %>%
-        # Now the total sector is not required any longer
-        filter(sector != "Total") %>%
-        # Multiply the weighting factor * log(indexed subsectors), or weighting factor * log(indexed total sector)
-        mutate(
-            ACT = weighting_factor * activity_log_total,
-            STR = weighting_factor * structure_log,
-            INT = weighting_factor * intensity_log,
-            MIX = weighting_factor * transformation_log,
-        ) %>%
-        # Remove unnecessary columns
-        select(
-            -c(
-                weighting_factor,
-                activity_log,
-                activity_log_total,
-                structure_log,
-                intensity_log,
-                transformation_log
-            )
-        ) %>%
-        # Now the figures calculated at subsector level need to be aggregated
-        group_by(geo, time) %>%
-        # The aggregation is performed differently:
-        summarize(
-            # Either by summing all subsectors
-            activity_effect = sum(ACT), # na.rm = TRUE),
-            structural_effect = sum(STR), # na.rm = TRUE),
-            intensity_effect = sum(INT), # na.rm = TRUE),
-            transformation_effect = sum(MIX), # na.rm = TRUE),
-            # By keeping the mean figure when only one exist across all subsectors
-            primary_energy_consumption_var_obs = mean(value_delta_primary_energy_consumption_total),
-            value_primary_energy_consumption_total_baseline = mean(value_primary_energy_consumption_total_baseline),
-            value_primary_energy_consumption_total_end = mean(value_primary_energy_consumption_total_end)
-        ) %>%
-        ungroup() %>%
-        # For checking purposes, recalculate the total energy consumption calculated as the sum of the effects
-        mutate(
-            primary_energy_consumption_var_calc =
-                rowSums(
-                    select(
-                        .,
-                        c(
-                            "activity_effect",
-                            "structural_effect",
-                            "intensity_effect",
-                            "transformation_effect"
-                        )
-                    ),
-                    # na.rm = TRUE
-                )
-        )
+    industry_GVA_primary_LMDI <- apply_LMDI(industry_GVA_primary_full)
 
     ### CHARTS ###
 
@@ -1703,4 +1575,141 @@ add_total_sector_primary <- function(df){
         ) %>%
         ungroup() %>%
         mutate(sector = "Total")
+}
+
+add_index_delta_primary(df){
+    df %>%
+    # calculate intensity again, to include the total intensity
+        mutate(
+            intensity = case_when(
+                (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
+                (GVA == 0 & final_energy_consumption == 0) ~ 0,
+                TRUE ~ final_energy_consumption / GVA
+            ),
+            transformation = case_when(
+                (primary_energy_consumption > 0 & final_energy_consumption == 0) ~ NA_real_,
+                (primary_energy_consumption == 0 & final_energy_consumption == 0) ~ 0,
+                TRUE ~ primary_energy_consumption / final_energy_consumption
+            )
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time, sector),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        group_by(geo, sector, measure) %>%
+        mutate(
+            value_indexed = case_when(
+                value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)] == 0 ~ 0,
+                is.na(value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)]) ~ NA_real_,
+                TRUE ~ value / value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)]
+            ),
+            value_delta = value - value[time == industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)],
+            time = as.integer(time)
+        ) %>%
+        ungroup()
+}
+
+apply_LMDI <- function(df){
+    df %>%
+        # Reshape to wide (moving all measures calculated in Value, index and delta, all in separate columns)
+        pivot_wider(
+            names_from = measure,
+            values_from = c(value, value_indexed, value_delta)
+        ) %>%
+        # Calculate the effects
+        mutate(
+            # the weighting factor links the effect calculated on the indexed variation to the total energy consumption variation
+            weighting_factor = ifelse(
+                value_delta_primary_energy_consumption == 0,
+                value_primary_energy_consumption,
+                value_delta_primary_energy_consumption / log(value_indexed_primary_energy_consumption)
+            ),
+            # Apply natural logarithm to the indexed values for each sub sectors
+            activity_log = ifelse(value_indexed_GVA == 0, 0, log(value_indexed_GVA)),
+            structure_log = ifelse(value_indexed_share_GVA == 0, 0, log(value_indexed_share_GVA)),
+            intensity_log = ifelse(value_indexed_intensity == 0, 0, log(value_indexed_intensity)),
+            transformation_log = ifelse(value_indexed_transformation == 0, 0, log(value_indexed_transformation))
+        ) %>%
+        # Keep only the relevant columns
+        select(
+            geo,
+            time,
+            sector,
+            weighting_factor,
+            value_primary_energy_consumption,
+            value_delta_primary_energy_consumption,
+            activity_log,
+            structure_log,
+            intensity_log,
+            transformation_log
+        ) %>%
+        # The baseline figures need to be expanded across all sub sectors, and across all years
+        rowwise() %>%
+        mutate(base_year = industry_GVA_base_year(country = .data[["geo"]], first_year = first_year)) %>%
+        ungroup() %>%
+        group_by(geo) %>%
+        mutate(
+            value_primary_energy_consumption_total_baseline = value_primary_energy_consumption[sector == "Total" & time == base_year]
+        ) %>%
+        ungroup() %>%
+        # Similarly, the figures calculated for the total sector and the end figures need to be expanded across all subsectors
+        group_by(geo, time) %>%
+        mutate(
+            activity_log_total = activity_log[sector == "Total"],
+            value_delta_primary_energy_consumption_total = value_delta_primary_energy_consumption[sector == "Total"],
+            value_primary_energy_consumption_total_end = value_primary_energy_consumption[sector == "Total"]
+        ) %>%
+        ungroup() %>%
+        # Now the total sector is not required any longer
+        filter(sector != "Total") %>%
+        # Multiply the weighting factor * log(indexed subsectors), or weighting factor * log(indexed total sector)
+        mutate(
+            ACT = weighting_factor * activity_log_total,
+            STR = weighting_factor * structure_log,
+            INT = weighting_factor * intensity_log,
+            MIX = weighting_factor * transformation_log,
+        ) %>%
+        # Remove unnecessary columns
+        select(
+            -c(
+                weighting_factor,
+                activity_log,
+                activity_log_total,
+                structure_log,
+                intensity_log,
+                transformation_log
+            )
+        ) %>%
+        # Now the figures calculated at subsector level need to be aggregated
+        group_by(geo, time) %>%
+        # The aggregation is performed differently:
+        summarize(
+            # Either by summing all subsectors
+            activity_effect = sum(ACT), # na.rm = TRUE),
+            structural_effect = sum(STR), # na.rm = TRUE),
+            intensity_effect = sum(INT), # na.rm = TRUE),
+            transformation_effect = sum(MIX), # na.rm = TRUE),
+            # By keeping the mean figure when only one exist across all subsectors
+            primary_energy_consumption_var_obs = mean(value_delta_primary_energy_consumption_total),
+            value_primary_energy_consumption_total_baseline = mean(value_primary_energy_consumption_total_baseline),
+            value_primary_energy_consumption_total_end = mean(value_primary_energy_consumption_total_end)
+        ) %>%
+        ungroup() %>%
+        # For checking purposes, recalculate the total energy consumption calculated as the sum of the effects
+        mutate(
+            primary_energy_consumption_var_calc =
+                rowSums(
+                    select(
+                        .,
+                        c(
+                            "activity_effect",
+                            "structural_effect",
+                            "intensity_effect",
+                            "transformation_effect"
+                        )
+                    ),
+                    # na.rm = TRUE
+                )
+        )
 }
