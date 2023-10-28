@@ -3,17 +3,19 @@ library(tidyr)
 # PRIMARY ENERGY CONSUMPTION IN INDUSTRY
 
 # Data preparation
-industry_GVA_primary <- function(first_year,
-                                 last_year,
-                                 country,
-                                 data_path,
-                                 chart_path) {
+industry_GVA_primary <- function(
+    first_year,
+    last_year,
+    country,
+    data_path,
+    chart_path) {
     source(path(getwd(), "scripts/0_support/print_charts.R"))
     source(path(getwd(), "scripts/0_support/year_selection.R"))
     source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
     source(path(getwd(), "scripts/0_support/mapping_products.R"))
     source(path(getwd(), "scripts/0_support/mapping_colors.R"))
     source(path(getwd(), "scripts/0_support/manual_corrections.R"))
+    source(path(getwd(), "scripts/1_industry/1_shared.R"))
 
     # Define the list as the whole list
     country_list <- geo_codes
@@ -30,541 +32,63 @@ industry_GVA_primary <- function(first_year,
 
     # share of primary energy used for electricity and heat production
 
-    ele_heat_share_primary <- nrg_bal_c %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take input to electricity and heat
-            nrg_bal %in% c("TI_EHG_E", "PEC2020-2030"),
-            # work with total energy consumption, in TJ
-            siec == "TOTAL",
-            unit == "TJ"
-        ) %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = nrg_bal,
-            values_from = values
-        ) %>%
-        mutate(share_EHG = TI_EHG_E / .data[["PEC2020-2030"]])
+    ele_heat_share_primary <- prepare_ele_heat_share_primary(
+        nrg_bal_c,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    )
 
     # get input to electricity and heat plants by fuel
 
-    ele_heat_input_breakdown <- nrg_bal_c %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take input to electricity and heat
-            nrg_bal == "TI_EHG_E",
-            # work with total energy consumption, in TJ
-            siec %in% NRG_PRODS,
-            unit == "TJ"
-        ) %>%
-        select(-c(nrg_bal, unit)) %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = siec,
-            values_from = values
-        ) %>%
-        # aggregate
-        mutate(
-            # Coal, manufactured gases, peat and peat products
-            CPS = rowSums(select(., all_of(COAL_PRODS)), na.rm = TRUE),
-            # Oil, petroleum products, oil shale and oil sands
-            OS = rowSums(select(., all_of(OIL_PRODS)), na.rm = TRUE),
-            # Biofuels and renewable wastes
-            RW = rowSums(select(., all_of(BIO_PRODS)), na.rm = TRUE),
-            # Non-renewable wastes
-            NRW = rowSums(select(., all_of(OTH_PRODS)), na.rm = TRUE),
-            # Wind, solar, geothermal, etc.
-            MR = rowSums(select(., all_of(OTH_REN)), na.rm = TRUE)
-        ) %>%
-        # keep only relevant columns
-        select(
-            -c(
-                C0110,
-                C0121,
-                C0129,
-                C0210,
-                C0220,
-                C0311,
-                C0312,
-                C0320,
-                C0330,
-                C0340,
-                C0350,
-                C0360,
-                C0371,
-                C0379,
-                P1100,
-                P1200,
-                O4100_TOT,
-                O4200,
-                O4300,
-                O4400X4410,
-                O4500,
-                O4610,
-                O4620,
-                O4630,
-                O4640,
-                O4651,
-                O4652XR5210B,
-                O4669,
-                O4671XR5220B,
-                O4653,
-                O4661XR5230B,
-                O4680,
-                O4691,
-                O4692,
-                O4693,
-                O4694,
-                O4695,
-                O4699,
-                S2000,
-                .data[["R5110-5150_W6000RI"]],
-                R5160,
-                R5210P,
-                R5210B,
-                R5220P,
-                R5220B,
-                R5230P,
-                R5230B,
-                R5290,
-                R5300,
-                W6210,
-                W6100,
-                W6220,
-                RA200,
-                RA300,
-                RA410,
-                RA420,
-                RA500,
-                RA600
-            )
-        ) %>%
-        # rename to explicit names
-        rename(
-            "Coal" = "CPS",
-            "Oil" = "OS",
-            "Gas" = "G3000",
-            "Biofuels and renewable wastes" = "RW",
-            "Non-renewable wastes" = "NRW",
-            "Nuclear" = "N900H",
-            "Hydro" = "RA100",
-            "Wind, solar, geothermal, etc." = "MR",
-            "Heat" = "H8000",
-            "Electricity" = "E7000"
-        ) %>%
-        # reshape to long
-        pivot_longer(
-            cols = -c(geo, time),
-            names_to = "product",
-            values_to = "energy_input"
-        ) %>%
-        mutate(product = factor(product, level = IDA_PRIMARY_PROD)) %>%
-        group_by(geo, time) %>%
-        mutate(share_energy_input = energy_input / sum(energy_input)) %>%
-        ungroup()
+    ele_heat_input_breakdown <- prepare_ele_heat_input_breakdown(
+        nrg_bal_c,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    )
 
     # subset the energy data from nrg_bal_c to keep only total energy consumption in TJ in industry sectors, for EU28 countries from 2010.
-    energy_EHG_TJ <- nrg_bal_c %>%
-        filter(
-            # take only EU countries
-            geo %in% country_list,
-            # from 2010 onward
-            time >= first_year,
-            # do not take 2019 for now (economic data incomplete)
-            time <= last_year,
-            # take industry end uses
-            nrg_bal %in% c(NRG_EHG_INPUT, NRG_EHG_OUTPUT),
-            # work with total energy consumption, in TJ
-            siec %in% c("TOTAL", "E7000", "H8000"),
-            unit == "TJ"
-        ) %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = siec,
-            values_from = values
-        ) %>%
-        # create a fuel input category
-        pivot_wider(
-            names_from = nrg_bal,
-            values_from = c(E7000, H8000, TOTAL)
-        ) %>%
-        # calculate available electricity, heat, and input for the electricity and heat generation
-        rowwise() %>%
-        mutate(
-            # total electricity available (gross output - used for heat production)
-            E7000_available =
-                sum(
-                    # output from Main Ele
-                    E7000_TO_EHG_MAPE,
-                    # output from Main CHP
-                    E7000_TO_EHG_MAPCHP,
-                    # output from Auto Ele
-                    E7000_TO_EHG_APE,
-                    # output from Auto CHP
-                    E7000_TO_EHG_APCHP,
-                    # output from Pumping Hydro
-                    E7000_TO_EHG_PH,
-                    # output from Other sources
-                    E7000_TO_EHG_OTH,
-                    # electricity input to Heat pump-E7000_TI_EHG_EDHP,
-                    # electricity input to electric boilers-E7000_TI_EHG_EB,
-                    na.rm = TRUE
-                ),
-
-            # total heat available (gross output - used for electricity production)
-            H8000_available =
-                sum(
-                    # output from Main CHP
-                    H8000_TO_EHG_MAPCHP,
-                    # output from Main Heat
-                    H8000_TO_EHG_MAPH,
-                    # output from Auto CHP
-                    H8000_TO_EHG_APCHP,
-                    # output from Auto Heat
-                    H8000_TO_EHG_APH,
-                    # output from Heat pumps
-                    H8000_TO_EHG_EDHP,
-                    # output from Electric boilers
-                    H8000_TO_EHG_EB,
-                    # output from Other sources
-                    H8000_TO_EHG_OTH,
-                    # derived heat for electricity production-H8000_TI_EHG_DHEP,
-                    na.rm = TRUE
-                ),
-
-            # Transformation input to Electricity generation
-            TI_EG =
-                sum(
-                    # input to Main Ele
-                    TOTAL_TI_EHG_MAPE_E,
-                    # input to Main CHP...
-                    TOTAL_TI_EHG_MAPCHP_E *
-                        # ...muliplied by the ratio of Main CHP electricity output...
-                        E7000_TO_EHG_MAPCHP /
-                        # ...over total Main CHP output
-                        TOTAL_TO_EHG_MAPCHP,
-                    # input to Auto Ele
-                    TOTAL_TI_EHG_APE_E,
-                    # input to Auto CHP...
-                    TOTAL_TI_EHG_APCHP_E *
-                        # ...muliplied by the ratio of Auto CHP electricity output...
-                        E7000_TO_EHG_APCHP /
-                        # ...over total Auto CHP output
-                        TOTAL_TO_EHG_APCHP,
-                    # input to Hydro pumping
-                    E7000_TI_EHG_EPS,
-                    # derived heat for electricity production
-                    H8000_TI_EHG_DHEP,
-                    na.rm = TRUE
-                ),
-
-            # Transformation input to Heat generation
-            TI_HG =
-                sum(
-                    # input to Main CHP...
-                    TOTAL_TI_EHG_MAPCHP_E *
-                        # ...muliplied by the ratio of Main CHP heat output...
-                        H8000_TO_EHG_MAPCHP /
-                        # ...over total Main CHP output
-                        TOTAL_TO_EHG_MAPCHP,
-                    # input to Main Heat
-                    TOTAL_TI_EHG_MAPH_E,
-                    # input to Auto CHP...
-                    TOTAL_TI_EHG_APCHP_E *
-                        # ...muliplied by the ratio of Main CHP heat output...
-                        H8000_TO_EHG_APCHP /
-                        # ...over total Main CHP output
-                        TOTAL_TO_EHG_APCHP,
-                    # input to Auto Heat
-                    TOTAL_TI_EHG_APH_E,
-                    # electricity input to Heat pumps
-                    E7000_TI_EHG_EDHP,
-                    # electricity input to electric boilers
-                    E7000_TI_EHG_EB,
-                    na.rm = TRUE
-                ),
-
-            # divide the total electricity / Heat available by the total input of energy
-            E7000_INPUT = TI_EG / E7000_available,
-            H8000_INPUT = TI_HG / H8000_available
-        ) %>%
-        select(geo, time, E7000_INPUT, H8000_INPUT)
+    energy_EHG_TJ <- prepare_energy_EHG_TJ(
+        nrg_bal_c,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    )
 
     # prepare energy data
 
     # energy consumption (and supply) from the energy balance (nrg_bal_c)
-    industry_energy_primary <- nrg_bal_c %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take industry end uses
-            nrg_bal %in% NRG_IND_SECTORS,
-            # work with total energy consumption, in TJ
-            siec %in% NRG_PRODS,
-            unit == "TJ"
-        ) %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = nrg_bal,
-            values_from = values
-        ) %>%
-        replace(is.na(.), 0) %>%
-        # aggregate
-        mutate(
-            # basic metals
-            FC_MBM = rowSums(
-                select(., c(
-                    "FC_IND_IS_E",
-                    "NRG_CO_E",
-                    "NRG_BF_E",
-                    "FC_IND_NFM_E"
-                )),
-                na.rm = TRUE
-            ),
-            # mining and quarrying
-            FC_MQ = rowSums(
-                select(., c(
-                    "FC_IND_MQ_E",
-                    "NRG_CM_E",
-                    "NRG_OIL_NG_E"
-                )),
-                na.rm = TRUE
-            ),
-            # other manufacturing
-            FC_NSP = rowSums(
-                select(., c(
-                    "NRG_PF_E",
-                    "NRG_BKBPB_E",
-                    "NRG_CL_E",
-                    "NRG_GTL_E",
-                    "NRG_CPP_E",
-                    "NRG_NSP_E",
-                    "FC_IND_NSP_E"
-                )),
-                na.rm = TRUE
-            )
-        ) %>%
-        # keep only relevant columns
-        select(
-            -c(
-                unit,
-                FC_IND_IS_E,
-                NRG_CO_E,
-                NRG_BF_E,
-                FC_IND_NFM_E,
-                FC_IND_MQ_E,
-                NRG_CM_E,
-                NRG_OIL_NG_E,
-                NRG_PF_E,
-                NRG_BKBPB_E,
-                NRG_CL_E,
-                NRG_GTL_E,
-                NRG_CPP_E,
-                NRG_NSP_E,
-                FC_IND_NSP_E
-            )
-        ) %>%
-        # rename to explicit names
-        rename(
-            "Construction" = "FC_IND_CON_E",
-            "Mining and quarrying" = "FC_MQ",
-            # "Food, beverages and tobacco" = "FC_IND_FBT_E",
-            "Food, bev. and tobacco" = "FC_IND_FBT_E",
-            "Textile and leather" = "FC_IND_TL_E",
-            "Wood and wood products" = "FC_IND_WP_E",
-            "Paper, pulp and printing" = "FC_IND_PPP_E",
-            # "Coke and refined petroleum products" = "NRG_PR_E",
-            "Coke and ref. pet. products" = "NRG_PR_E",
-            # "Chemical and petrochemical" = "FC_IND_CPC_E",
-            "Chemical and petrochem." = "FC_IND_CPC_E",
-            "Non-metallic minerals" = "FC_IND_NMM_E",
-            "Basic metals" = "FC_MBM",
-            "Machinery" = "FC_IND_MAC_E",
-            "Transport equipment" = "FC_IND_TE_E",
-            "Other manufacturing" = "FC_NSP"
-        ) %>%
-        # reshape to long
-        pivot_longer(
-            cols = -c(geo, time, siec),
-            names_to = "sector",
-            values_to = "final_energy_consumption"
-        ) %>%
-        merge(energy_EHG_TJ,
-            all = TRUE,
-            by = c("geo", "time")
-        ) %>%
-        mutate(
-            primary_energy_consumption =
-                case_when(
-                    siec == "E7000" ~ final_energy_consumption * E7000_INPUT,
-                    siec == "H8000" ~ final_energy_consumption * H8000_INPUT,
-                    TRUE ~ final_energy_consumption
-                )
-        ) %>%
-        group_by(geo, time, sector) %>%
-        summarize(
-            final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
-            primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE)
-        ) %>%
-        ungroup()
+    industry_energy_primary <- prepare_industry_energy_primary(
+        nrg_bal_c,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    )
 
     # economic activity from the national account data (nama_10_a64)
-    industry_GVA <- nama_10_a64 %>%
-        filter(
-            geo %in% geo_codes,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take industry sub sectors
-            nace_r2 %in% GVA_IND_SECTORS,
-            # Gross Value Added in Chain linked volumes (2015), million euro
-            na_item == "B1G",
-            unit == "CLV15_MEUR"
-        ) %>%
-        select(c("geo", "time", "nace_r2", "values")) %>%
-        # reshape to wide
-        pivot_wider(names_from = nace_r2, values_from = values) %>%
-        # aggregate
-        mutate(
-            # Paper
-            "C17-C18" = rowSums(select(., c("C17", "C18")), na.rm = TRUE),
-            # Chem and petchem
-            "C20-C21" = rowSums(select(., c("C20", "C21")), na.rm = TRUE),
-            # Non-metallic minerals
-            "C22-C23" = rowSums(select(., c("C22", "C23")), na.rm = TRUE),
-            # Machinery
-            "C25-C28" = rowSums(select(., c("C25", "C26", "C27", "C28")), na.rm = TRUE),
-            # Transport equipment
-            "C29-C30" = rowSums(select(., c("C29", "C30")), na.rm = TRUE)
-        ) %>%
-        # keep only relevant columns
-        select(-c(C17, C18, C20, C21, C22, C23, C25, C26, C27, C28, C29, C30)) %>%
-        # Rename to explicit names
-        rename(
-            "Construction" = "F",
-            "Mining and quarrying" = "B",
-            # "Food, beverages and tobacco" = "C10-C12",
-            "Food, bev. and tobacco" = "C10-C12",
-            "Textile and leather" = "C13-C15",
-            "Wood and wood products" = "C16",
-            "Paper, pulp and printing" = "C17-C18",
-            # "Coke and refined petroleum products" = "C19",
-            "Coke and ref. pet. products" = "C19",
-            # "Chemical and petrochemical" = "C20-C21",
-            "Chemical and petrochem." = "C20-C21",
-            "Non-metallic minerals" = "C22-C23",
-            "Basic metals" = "C24",
-            "Machinery" = "C25-C28",
-            "Transport equipment" = "C29-C30",
-            "Other manufacturing" = "C31_C32"
-        ) %>%
-        # Reshape to long
-        pivot_longer(
-            cols = -c(geo, time),
-            names_to = "sector",
-            values_to = "GVA"
-        ) %>%
+    industry_GVA <- prepare_industry_GVA(
+        nama_10_a64,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    ) %>%
         apply_gva_corrections()
 
     # Joining datasets
-    industry_GVA_primary_complete <- full_join(industry_GVA,
+    industry_GVA_primary_complete <- full_join(
+        industry_GVA,
         industry_energy_primary,
         by = c("geo", "time", "sector")
     ) %>%
-        # correcting for missing GVA / Energy
-        mutate(
-            GVA = case_when(
-                (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
-                TRUE ~ GVA
-            ),
-            final_energy_consumption = case_when(
-                (final_energy_consumption == 0 & GVA > 0) ~ NA_real_,
-                TRUE ~ final_energy_consumption
-            ),
-            # intensity calculated here for the charts, will be recalculated later once the totals are included
-            intensity = case_when(
-                (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
-                (GVA == 0 & final_energy_consumption == 0) ~ 0,
-                TRUE ~ final_energy_consumption / GVA
-            ),
-            transformation = case_when(
-                (primary_energy_consumption > 0 & final_energy_consumption == 0) ~ NA_real_,
-                (primary_energy_consumption == 0 & final_energy_consumption == 0) ~ 0,
-                TRUE ~ primary_energy_consumption / final_energy_consumption
-            )
-        ) %>%
-        # For each country and each year
-        group_by(geo, time) %>%
-        mutate(
-            # Calculate the total energy consumption and value added of the overall industry sector, as the sum of all subsectors selected
-            total_final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
-            total_primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
-            total_GVA = sum(GVA, na.rm = TRUE)
-        ) %>%
-        ungroup() %>%
-        # For each country, each year and each subsector
-        mutate(
-            # Calculate the share of the subsector in the overall energy consumption and in the overall value added of the industry sector
-            share_final_energy_consumption = final_energy_consumption / total_final_energy_consumption,
-            share_primary_energy_consumption = primary_energy_consumption / total_primary_energy_consumption,
-            share_GVA = GVA / total_GVA
-        )
+        prepare_industry_GVA_primary_complete()
 
     # filter out sectors with incomplete data
     industry_GVA_primary_filtered <- filter_industry_GVA(industry_GVA_primary_complete)
 
-    industry_GVA_primary_augmented <- industry_GVA_primary_filtered %>%
-        # For each country and each year
-        group_by(geo, time) %>%
-        mutate(
-            # Calculate the total energy consumption and value added of the overall industry sector, as the sum of all subsectors selected
-            total_primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
-            total_final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
-            total_GVA = sum(GVA, na.rm = TRUE)
-        ) %>%
-        ungroup() %>%
-        # For each country, each year and each subsector
-        mutate(
-            # Calculate the share of the subsector in the overall energy consumption and in the overall value added of the industry sector
-            share_primary_energy_consumption = primary_energy_consumption / total_primary_energy_consumption,
-            share_final_energy_consumption = final_energy_consumption / total_final_energy_consumption,
-            share_GVA = GVA / total_GVA
-        ) %>%
-        # Remove the total columns, not required any longer
-        select(-c(
-            total_primary_energy_consumption,
-            total_final_energy_consumption,
-            total_GVA,
-            intensity,
-            transformation
-        )) %>%
-        ungroup()
+    industry_GVA_primary_augmented <- augment_industry_GVA_primary(industry_GVA_primary_filtered)
 
-    industry_GVA_primary_total <- industry_GVA_primary_augmented %>%
-        group_by(geo, time) %>%
-        summarize(
-            GVA = sum(GVA, na.rm = TRUE),
-            primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
-            final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
-            # the sum of shares should be one, calculated here for checking
-            share_GVA = sum(share_GVA, na.rm = TRUE),
-            share_primary_energy_consumption = sum(share_primary_energy_consumption, na.rm = TRUE),
-            share_final_energy_consumption = sum(share_final_energy_consumption, na.rm = TRUE)
-        ) %>%
-        ungroup() %>%
-        mutate(sector = "Total")
+    industry_GVA_primary_total <- add_total_sector_primary(industry_GVA_primary_augmented)
 
     # Calculate the indexed and indexed indicators
 
@@ -1683,4 +1207,500 @@ industry_GVA_primary <- function(first_year,
             res = 300
         )
     }
+}
+
+prepare_ele_heat_share_primary <- function(
+    nrg_bal_c,
+    first_year,
+    last_year,
+    country_list){
+
+    nrg_bal_c %>%
+        filter(
+            geo %in% country_list,
+            # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year,
+            # take input to electricity and heat
+            nrg_bal %in% c("TI_EHG_E", "PEC2020-2030"),
+            # work with total energy consumption, in TJ
+            siec == "TOTAL",
+            unit == "TJ"
+        ) %>%
+        # reshape to wide
+        pivot_wider(
+            names_from = nrg_bal,
+            values_from = values
+        ) %>%
+        mutate(share_EHG = TI_EHG_E / .data[["PEC2020-2030"]])
+}
+
+prepare_ele_heat_input_breakdown <- function(
+    nrg_bal_c,
+    first_year,
+    last_year,
+    country_list
+){
+    nrg_bal_c %>%
+        filter(
+            geo %in% country_list,
+            # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year,
+            # take input to electricity and heat
+            nrg_bal == "TI_EHG_E",
+            # work with total energy consumption, in TJ
+            siec %in% NRG_PRODS,
+            unit == "TJ"
+        ) %>%
+        select(-c(nrg_bal, unit)) %>%
+        # reshape to wide
+        pivot_wider(
+            names_from = siec,
+            values_from = values
+        ) %>%
+        # aggregate
+        mutate(
+            # Coal, manufactured gases, peat and peat products
+            CPS = rowSums(select(., all_of(COAL_PRODS)), na.rm = TRUE),
+            # Oil, petroleum products, oil shale and oil sands
+            OS = rowSums(select(., all_of(OIL_PRODS)), na.rm = TRUE),
+            # Biofuels and renewable wastes
+            RW = rowSums(select(., all_of(BIO_PRODS)), na.rm = TRUE),
+            # Non-renewable wastes
+            NRW = rowSums(select(., all_of(OTH_PRODS)), na.rm = TRUE),
+            # Wind, solar, geothermal, etc.
+            MR = rowSums(select(., all_of(OTH_REN)), na.rm = TRUE)
+        ) %>%
+        # keep only relevant columns
+        select(
+            -c(
+                C0110,
+                C0121,
+                C0129,
+                C0210,
+                C0220,
+                C0311,
+                C0312,
+                C0320,
+                C0330,
+                C0340,
+                C0350,
+                C0360,
+                C0371,
+                C0379,
+                P1100,
+                P1200,
+                O4100_TOT,
+                O4200,
+                O4300,
+                O4400X4410,
+                O4500,
+                O4610,
+                O4620,
+                O4630,
+                O4640,
+                O4651,
+                O4652XR5210B,
+                O4669,
+                O4671XR5220B,
+                O4653,
+                O4661XR5230B,
+                O4680,
+                O4691,
+                O4692,
+                O4693,
+                O4694,
+                O4695,
+                O4699,
+                S2000,
+                .data[["R5110-5150_W6000RI"]],
+                R5160,
+                R5210P,
+                R5210B,
+                R5220P,
+                R5220B,
+                R5230P,
+                R5230B,
+                R5290,
+                R5300,
+                W6210,
+                W6100,
+                W6220,
+                RA200,
+                RA300,
+                RA410,
+                RA420,
+                RA500,
+                RA600
+            )
+        ) %>%
+        # rename to explicit names
+        rename(
+            "Coal" = "CPS",
+            "Oil" = "OS",
+            "Gas" = "G3000",
+            "Biofuels and renewable wastes" = "RW",
+            "Non-renewable wastes" = "NRW",
+            "Nuclear" = "N900H",
+            "Hydro" = "RA100",
+            "Wind, solar, geothermal, etc." = "MR",
+            "Heat" = "H8000",
+            "Electricity" = "E7000"
+        ) %>%
+        # reshape to long
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "product",
+            values_to = "energy_input"
+        ) %>%
+        mutate(product = factor(product, level = IDA_PRIMARY_PROD)) %>%
+        group_by(geo, time) %>%
+        mutate(share_energy_input = energy_input / sum(energy_input)) %>%
+        ungroup()
+}
+
+prepare_energy_EHG_TJ <- function(
+    nrg_bal_c, 
+    first_year,
+    last_year,
+    country_list){
+        nrg_bal_c %>%
+        filter(
+            # take only EU countries
+            geo %in% country_list,
+            # from 2010 onward
+            time >= first_year,
+            # do not take 2019 for now (economic data incomplete)
+            time <= last_year,
+            # take industry end uses
+            nrg_bal %in% c(NRG_EHG_INPUT, NRG_EHG_OUTPUT),
+            # work with total energy consumption, in TJ
+            siec %in% c("TOTAL", "E7000", "H8000"),
+            unit == "TJ"
+        ) %>%
+        # reshape to wide
+        pivot_wider(
+            names_from = siec,
+            values_from = values
+        ) %>%
+        # create a fuel input category
+        pivot_wider(
+            names_from = nrg_bal,
+            values_from = c(E7000, H8000, TOTAL)
+        ) %>%
+        # calculate available electricity, heat, and input for the electricity and heat generation
+        rowwise() %>%
+        mutate(
+            # total electricity available (gross output - used for heat production)
+            E7000_available =
+                sum(
+                    # output from Main Ele
+                    E7000_TO_EHG_MAPE,
+                    # output from Main CHP
+                    E7000_TO_EHG_MAPCHP,
+                    # output from Auto Ele
+                    E7000_TO_EHG_APE,
+                    # output from Auto CHP
+                    E7000_TO_EHG_APCHP,
+                    # output from Pumping Hydro
+                    E7000_TO_EHG_PH,
+                    # output from Other sources
+                    E7000_TO_EHG_OTH,
+                    # electricity input to Heat pump-E7000_TI_EHG_EDHP,
+                    # electricity input to electric boilers-E7000_TI_EHG_EB,
+                    na.rm = TRUE
+                ),
+
+            # total heat available (gross output - used for electricity production)
+            H8000_available =
+                sum(
+                    # output from Main CHP
+                    H8000_TO_EHG_MAPCHP,
+                    # output from Main Heat
+                    H8000_TO_EHG_MAPH,
+                    # output from Auto CHP
+                    H8000_TO_EHG_APCHP,
+                    # output from Auto Heat
+                    H8000_TO_EHG_APH,
+                    # output from Heat pumps
+                    H8000_TO_EHG_EDHP,
+                    # output from Electric boilers
+                    H8000_TO_EHG_EB,
+                    # output from Other sources
+                    H8000_TO_EHG_OTH,
+                    # derived heat for electricity production-H8000_TI_EHG_DHEP,
+                    na.rm = TRUE
+                ),
+
+            # Transformation input to Electricity generation
+            TI_EG =
+                sum(
+                    # input to Main Ele
+                    TOTAL_TI_EHG_MAPE_E,
+                    # input to Main CHP...
+                    TOTAL_TI_EHG_MAPCHP_E *
+                        # ...muliplied by the ratio of Main CHP electricity output...
+                        E7000_TO_EHG_MAPCHP /
+                        # ...over total Main CHP output
+                        TOTAL_TO_EHG_MAPCHP,
+                    # input to Auto Ele
+                    TOTAL_TI_EHG_APE_E,
+                    # input to Auto CHP...
+                    TOTAL_TI_EHG_APCHP_E *
+                        # ...muliplied by the ratio of Auto CHP electricity output...
+                        E7000_TO_EHG_APCHP /
+                        # ...over total Auto CHP output
+                        TOTAL_TO_EHG_APCHP,
+                    # input to Hydro pumping
+                    E7000_TI_EHG_EPS,
+                    # derived heat for electricity production
+                    H8000_TI_EHG_DHEP,
+                    na.rm = TRUE
+                ),
+
+            # Transformation input to Heat generation
+            TI_HG =
+                sum(
+                    # input to Main CHP...
+                    TOTAL_TI_EHG_MAPCHP_E *
+                        # ...muliplied by the ratio of Main CHP heat output...
+                        H8000_TO_EHG_MAPCHP /
+                        # ...over total Main CHP output
+                        TOTAL_TO_EHG_MAPCHP,
+                    # input to Main Heat
+                    TOTAL_TI_EHG_MAPH_E,
+                    # input to Auto CHP...
+                    TOTAL_TI_EHG_APCHP_E *
+                        # ...muliplied by the ratio of Main CHP heat output...
+                        H8000_TO_EHG_APCHP /
+                        # ...over total Main CHP output
+                        TOTAL_TO_EHG_APCHP,
+                    # input to Auto Heat
+                    TOTAL_TI_EHG_APH_E,
+                    # electricity input to Heat pumps
+                    E7000_TI_EHG_EDHP,
+                    # electricity input to electric boilers
+                    E7000_TI_EHG_EB,
+                    na.rm = TRUE
+                ),
+
+            # divide the total electricity / Heat available by the total input of energy
+            E7000_INPUT = TI_EG / E7000_available,
+            H8000_INPUT = TI_HG / H8000_available
+        ) %>%
+        select(geo, time, E7000_INPUT, H8000_INPUT)
+}
+
+prepare_industry_energy_primary <- function(
+    nrg_bal_c,
+    first_year,
+    last_year,
+    country_list
+){
+    nrg_bal_c %>%
+        filter(
+            geo %in% country_list,
+            # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year,
+            # take industry end uses
+            nrg_bal %in% NRG_IND_SECTORS,
+            # work with total energy consumption, in TJ
+            siec %in% NRG_PRODS,
+            unit == "TJ"
+        ) %>%
+        # reshape to wide
+        pivot_wider(
+            names_from = nrg_bal,
+            values_from = values
+        ) %>%
+        replace(is.na(.), 0) %>%
+        # aggregate
+        mutate(
+            # basic metals
+            FC_MBM = rowSums(
+                select(., c(
+                    "FC_IND_IS_E",
+                    "NRG_CO_E",
+                    "NRG_BF_E",
+                    "FC_IND_NFM_E"
+                )),
+                na.rm = TRUE
+            ),
+            # mining and quarrying
+            FC_MQ = rowSums(
+                select(., c(
+                    "FC_IND_MQ_E",
+                    "NRG_CM_E",
+                    "NRG_OIL_NG_E"
+                )),
+                na.rm = TRUE
+            ),
+            # other manufacturing
+            FC_NSP = rowSums(
+                select(., c(
+                    "NRG_PF_E",
+                    "NRG_BKBPB_E",
+                    "NRG_CL_E",
+                    "NRG_GTL_E",
+                    "NRG_CPP_E",
+                    "NRG_NSP_E",
+                    "FC_IND_NSP_E"
+                )),
+                na.rm = TRUE
+            )
+        ) %>%
+        # keep only relevant columns
+        select(
+            -c(
+                unit,
+                FC_IND_IS_E,
+                NRG_CO_E,
+                NRG_BF_E,
+                FC_IND_NFM_E,
+                FC_IND_MQ_E,
+                NRG_CM_E,
+                NRG_OIL_NG_E,
+                NRG_PF_E,
+                NRG_BKBPB_E,
+                NRG_CL_E,
+                NRG_GTL_E,
+                NRG_CPP_E,
+                NRG_NSP_E,
+                FC_IND_NSP_E
+            )
+        ) %>%
+        # rename to explicit names
+        rename(
+            "Construction" = "FC_IND_CON_E",
+            "Mining and quarrying" = "FC_MQ",
+            # "Food, beverages and tobacco" = "FC_IND_FBT_E",
+            "Food, bev. and tobacco" = "FC_IND_FBT_E",
+            "Textile and leather" = "FC_IND_TL_E",
+            "Wood and wood products" = "FC_IND_WP_E",
+            "Paper, pulp and printing" = "FC_IND_PPP_E",
+            # "Coke and refined petroleum products" = "NRG_PR_E",
+            "Coke and ref. pet. products" = "NRG_PR_E",
+            # "Chemical and petrochemical" = "FC_IND_CPC_E",
+            "Chemical and petrochem." = "FC_IND_CPC_E",
+            "Non-metallic minerals" = "FC_IND_NMM_E",
+            "Basic metals" = "FC_MBM",
+            "Machinery" = "FC_IND_MAC_E",
+            "Transport equipment" = "FC_IND_TE_E",
+            "Other manufacturing" = "FC_NSP"
+        ) %>%
+        # reshape to long
+        pivot_longer(
+            cols = -c(geo, time, siec),
+            names_to = "sector",
+            values_to = "final_energy_consumption"
+        ) %>%
+        merge(energy_EHG_TJ,
+            all = TRUE,
+            by = c("geo", "time")
+        ) %>%
+        mutate(
+            primary_energy_consumption =
+                case_when(
+                    siec == "E7000" ~ final_energy_consumption * E7000_INPUT,
+                    siec == "H8000" ~ final_energy_consumption * H8000_INPUT,
+                    TRUE ~ final_energy_consumption
+                )
+        ) %>%
+        group_by(geo, time, sector) %>%
+        summarize(
+            final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
+            primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE)
+        ) %>%
+        ungroup()
+}
+
+prepare_industry_GVA_primary_complete <- function(df) {
+    df %>%
+    # correcting for missing GVA / Energy
+        mutate(
+            GVA = case_when(
+                (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
+                TRUE ~ GVA
+            ),
+            final_energy_consumption = case_when(
+                (final_energy_consumption == 0 & GVA > 0) ~ NA_real_,
+                TRUE ~ final_energy_consumption
+            ),
+            # intensity calculated here for the charts, will be recalculated later once the totals are included
+            intensity = case_when(
+                (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
+                (GVA == 0 & final_energy_consumption == 0) ~ 0,
+                TRUE ~ final_energy_consumption / GVA
+            ),
+            transformation = case_when(
+                (primary_energy_consumption > 0 & final_energy_consumption == 0) ~ NA_real_,
+                (primary_energy_consumption == 0 & final_energy_consumption == 0) ~ 0,
+                TRUE ~ primary_energy_consumption / final_energy_consumption
+            )
+        ) %>%
+        # For each country and each year
+        group_by(geo, time) %>%
+        mutate(
+            # Calculate the total energy consumption and value added of the overall industry sector, as the sum of all subsectors selected
+            total_final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
+            total_primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
+            total_GVA = sum(GVA, na.rm = TRUE)
+        ) %>%
+        ungroup() %>%
+        # For each country, each year and each subsector
+        mutate(
+            # Calculate the share of the subsector in the overall energy consumption and in the overall value added of the industry sector
+            share_final_energy_consumption = final_energy_consumption / total_final_energy_consumption,
+            share_primary_energy_consumption = primary_energy_consumption / total_primary_energy_consumption,
+            share_GVA = GVA / total_GVA
+        )
+}
+
+augment_industry_GVA_primary <- function(df) {
+    df %>%
+    # For each country and each year
+        group_by(geo, time) %>%
+        mutate(
+            # Calculate the total energy consumption and value added of the overall industry sector, as the sum of all subsectors selected
+            total_primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
+            total_final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
+            total_GVA = sum(GVA, na.rm = TRUE)
+        ) %>%
+        ungroup() %>%
+        # For each country, each year and each subsector
+        mutate(
+            # Calculate the share of the subsector in the overall energy consumption and in the overall value added of the industry sector
+            share_primary_energy_consumption = primary_energy_consumption / total_primary_energy_consumption,
+            share_final_energy_consumption = final_energy_consumption / total_final_energy_consumption,
+            share_GVA = GVA / total_GVA
+        ) %>%
+        # Remove the total columns, not required any longer
+        select(-c(
+            total_primary_energy_consumption,
+            total_final_energy_consumption,
+            total_GVA,
+            intensity,
+            transformation
+        )) %>%
+        ungroup()
+}
+
+add_total_sector_primary <- function(df){
+    group_by(geo, time) %>%
+        summarize(
+            GVA = sum(GVA, na.rm = TRUE),
+            primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
+            final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
+            # the sum of shares should be one, calculated here for checking
+            share_GVA = sum(share_GVA, na.rm = TRUE),
+            share_primary_energy_consumption = sum(share_primary_energy_consumption, na.rm = TRUE),
+            share_final_energy_consumption = sum(share_final_energy_consumption, na.rm = TRUE)
+        ) %>%
+        ungroup() %>%
+        mutate(sector = "Total")
 }

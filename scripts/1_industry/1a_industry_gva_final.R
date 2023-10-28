@@ -3,17 +3,19 @@ library(tidyr)
 # FINAL ENERGY CONSUMPTION IN INDUSTRY
 
 # Data preparation
-industry_GVA_final <- function(first_year,
-                               last_year,
-                               country,
-                               data_path,
-                               chart_path) {
+industry_GVA_final <- function(
+    first_year,
+    last_year,
+    country,
+    data_path,
+    chart_path) {
     source(path(getwd(), "scripts/0_support/print_charts.R"))
     source(path(getwd(), "scripts/0_support/year_selection.R"))
     source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
     source(path(getwd(), "scripts/0_support/mapping_products.R"))
     source(path(getwd(), "scripts/0_support/mapping_colors.R"))
     source(path(getwd(), "scripts/0_support/manual_corrections.R"))
+    source(path(getwd(), "scripts/1_industry/1_shared.R"))
 
     # Define the list as the whole list
     country_list <- geo_codes
@@ -28,31 +30,32 @@ industry_GVA_final <- function(first_year,
 
     # Energy consumption by fuel
     industry_energy_breakdown <- prepare_industry_energy_breakdown(
+        nrg_bal_c,
         first_year = first_year,
         last_year = last_year,
-        nrg_bal_c = nrg_bal_c,
         country_list = country_list
     )
 
     # energy consumption (and supply) from the energy balance (nrg_bal_c)
     industry_energy_final <- prepare_industry_energy_final(
+        nrg_bal_c,
         first_year = first_year,
         last_year = last_year,
-        nrg_bal_c = nrg_bal_c,
         country_list = country_list
     )
 
     # economic activity from the national account data (nama_10_a64)
     industry_GVA <- prepare_industry_GVA(
+        nama_10_a64,
         first_year = first_year,
         last_year = last_year,
-        nama_10_a64 = nama_10_a64,
         country_list = country_list
     ) %>%
         apply_gva_corrections()
 
     # Joining datasets
-    industry_GVA_final_complete <- full_join(industry_GVA,
+    industry_GVA_final_complete <- full_join(
+        industry_GVA,
         industry_energy_final,
         by = c("geo", "time", "sector")
     ) %>%
@@ -63,7 +66,7 @@ industry_GVA_final <- function(first_year,
 
     industry_GVA_final_augmented <- augment_industry_GVA_final(industry_GVA_final_filtered)
 
-    industry_GVA_final_total <- add_total_sector(industry_GVA_final_augmented)
+    industry_GVA_final_total <- add_total_sector_final(industry_GVA_final_augmented)
 
     # Calculate the indexed and indexed indicators
 
@@ -94,14 +97,16 @@ industry_GVA_final <- function(first_year,
         first_year_chart <- industry_GVA_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- industry_GVA_last_year(country = country_chart, final_year = last_year)
 
-        generate_country_charts(industry_GVA_final_complete,
+        generate_country_charts(
+            industry_GVA_final_complete,
             year_chart = year_chart,
             country_name = country_name,
             country_chart = country_chart,
             output_path = output_path
         )
 
-        generate_subsectors_charts(industry_GVA_final_full,
+        generate_subsectors_charts(
+            industry_GVA_final_full,
             country_name = country_name,
             country_chart = country_chart,
             first_year_chart = first_year_chart,
@@ -109,7 +114,8 @@ industry_GVA_final <- function(first_year,
             output_path = output_path
         )
 
-        generate_energy_breakdown_charts(industry_energy_breakdown,
+        generate_energy_breakdown_charts(
+            industry_energy_breakdown,
             country_chart = country_chart,
             country_name = country_name,
             first_year = first_year,
@@ -117,7 +123,8 @@ industry_GVA_final <- function(first_year,
             output_path = output_path
         )
 
-        generate_final_effects_charts(industry_GVA_final_LMDI,
+        generate_final_effects_charts(
+            industry_GVA_final_LMDI,
             country_chart = country_chart,
             country_name = country_name,
             year_chart = year_chart,
@@ -132,12 +139,14 @@ industry_GVA_final <- function(first_year,
     if (country == "EU27") {
         output_path <- paste0(chart_path, "/EU27/")
 
-        generate_coverage_chart(industry_GVA_final_complete,
+        generate_coverage_chart(
+            industry_GVA_final_complete,
             year_chart = year_chart,
             output_path = output_path
         )
 
-        generate_eu_comparison_chart(industry_GVA_final_full,
+        generate_eu_comparison_chart(
+            industry_GVA_final_full,
             first_year_chart = first_year_chart,
             last_year_chart = last_year_chart,
             output_path = output_path
@@ -145,10 +154,11 @@ industry_GVA_final <- function(first_year,
     }
 }
 
-prepare_industry_energy_breakdown <- function(first_year,
-                                              last_year,
-                                              nrg_bal_c,
-                                              country_list) {
+prepare_industry_energy_breakdown <- function(
+    nrg_bal_c,
+    first_year,
+    last_year,
+    country_list) {
     nrg_bal_c %>%
         filter(
             geo %in% country_list,
@@ -271,10 +281,11 @@ prepare_industry_energy_breakdown <- function(first_year,
         ungroup()
 }
 
-prepare_industry_energy_final <- function(first_year,
-                                          last_year,
-                                          nrg_bal_c,
-                                          country_list) {
+prepare_industry_energy_final <- function(
+    nrg_bal_c,
+    first_year,
+    last_year,
+    country_list) {
     nrg_bal_c %>%
         filter(
             geo %in% country_list,
@@ -375,71 +386,6 @@ prepare_industry_energy_final <- function(first_year,
         )
 }
 
-prepare_industry_GVA <- function(first_year,
-                                 last_year,
-                                 nama_10_a64,
-                                 country_list) {
-    nama_10_a64 %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take industry sub sectors
-            nace_r2 %in% GVA_IND_SECTORS,
-            # Gross Value Added in Chain linked volumes (2015), million euro
-            na_item == "B1G",
-            unit == "CLV15_MEUR"
-        ) %>%
-        select(c("geo", "time", "nace_r2", "values")) %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = nace_r2,
-            values_from = values
-        ) %>%
-        # aggregate
-        mutate(
-            # Paper
-            "C17-C18" = rowSums(select(., c("C17", "C18")), na.rm = TRUE),
-            # Chem and petchem
-            "C20-C21" = rowSums(select(., c("C20", "C21")), na.rm = TRUE),
-            # Non-metallic minerals
-            "C22-C23" = rowSums(select(., c("C22", "C23")), na.rm = TRUE),
-            # Machinery
-            "C25-C28" = rowSums(select(., c("C25", "C26", "C27", "C28")), na.rm = TRUE),
-            # Transport equipment
-            "C29-C30" = rowSums(select(., c("C29", "C30")), na.rm = TRUE)
-        ) %>%
-        # keep only relevant columns
-        select(-c(C17, C18, C20, C21, C22, C23, C25, C26, C27, C28, C29, C30)) %>%
-        # Rename to explicit names
-        rename(
-            "Construction" = "F",
-            "Mining and quarrying" = "B",
-            # "Food, beverages and tobacco" = "C10-C12",
-            "Food, bev. and tobacco" = "C10-C12",
-            "Textile and leather" = "C13-C15",
-            "Wood and wood products" = "C16",
-            "Paper, pulp and printing" = "C17-C18",
-            # "Coke and refined petroleum products" = "C19",
-            "Coke and ref. pet. products" = "C19",
-            # "Chemical and petrochemical" = "C20-C21",
-            "Chemical and petrochem." = "C20-C21",
-            "Non-metallic minerals" = "C22-C23",
-            "Basic metals" = "C24",
-            "Machinery" = "C25-C28",
-            "Transport equipment" = "C29-C30",
-            "Other manufacturing" = "C31_C32"
-        ) %>%
-        # Reshape to long
-        pivot_longer(
-            cols = -c(geo, time),
-            names_to = "sector",
-            values_to = "GVA"
-        )
-}
-
 prepare_industry_GVA_final_complete <- function(df) {
     df %>%
         # correcting for missing GVA / Energy
@@ -500,7 +446,7 @@ augment_industry_GVA_final <- function(df) {
         ungroup()
 }
 
-add_total_sector <- function(df) {
+add_total_sector_final <- function(df) {
     df %>%
         group_by(geo, time) %>%
         summarize(
@@ -638,11 +584,12 @@ apply_LMDI <- function(df) {
         )
 }
 
-generate_country_charts <- function(industry_GVA_final_complete,
-                                    year_chart,
-                                    country_name,
-                                    country_chart,
-                                    output_path) {
+generate_country_charts <- function(
+    industry_GVA_final_complete,
+    year_chart,
+    country_name,
+    country_chart,
+    output_path) {
     # Country data
     industry_GVA_final_country_data <-
         industry_GVA_final_complete %>%
@@ -909,12 +856,13 @@ generate_country_charts <- function(industry_GVA_final_complete,
     )
 }
 
-generate_subsectors_charts <- function(industry_GVA_final_full,
-                                       country_chart,
-                                       country_name,
-                                       first_year_chart,
-                                       last_year_chart,
-                                       output_path) {
+generate_subsectors_charts <- function(
+    industry_GVA_final_full,
+    country_chart,
+    country_name,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
     # full data (after filtering)
     industry_GVA_final_subsector <-
         industry_GVA_final_full %>%
@@ -1116,12 +1064,13 @@ generate_subsectors_charts <- function(industry_GVA_final_full,
     )
 }
 
-generate_energy_breakdown_charts <- function(industry_energy_breakdown,
-                                             country_chart,
-                                             country_name,
-                                             first_year,
-                                             last_year,
-                                             output_path) {
+generate_energy_breakdown_charts <- function(
+    industry_energy_breakdown,
+    country_chart,
+    country_name,
+    first_year,
+    last_year,
+    output_path) {
     # Breakdown of energy consumption by fuel
     industry_energy_breakdown_filtered <-
         industry_energy_breakdown %>%
@@ -1213,15 +1162,16 @@ generate_energy_breakdown_charts <- function(industry_energy_breakdown,
     )
 }
 
-generate_final_effects_charts <- function(industry_GVA_final_LMDI,
-                                          country_chart,
-                                          country_name,
-                                          year_chart,
-                                          first_year,
-                                          last_year,
-                                          first_year_chart,
-                                          last_year_chart,
-                                          output_path) {
+generate_final_effects_charts <- function(
+    industry_GVA_final_LMDI,
+    country_chart,
+    country_name,
+    year_chart,
+    first_year,
+    last_year,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
     # Simple effect decomposition
 
     # prepare data for the simple effect chart
@@ -1465,9 +1415,10 @@ generate_final_effects_charts <- function(industry_GVA_final_LMDI,
     )
 }
 
-generate_coverage_chart <- function(industry_GVA_final_complete,
-                                    year_chart,
-                                    output_path) {
+generate_coverage_chart <- function(
+    industry_GVA_final_complete,
+    year_chart,
+    output_path) {
     # Data coverage chart
     missing_data <- industry_GVA_final_complete %>%
         filter(
@@ -1525,10 +1476,11 @@ generate_coverage_chart <- function(industry_GVA_final_complete,
     )
 }
 
-generate_eu_comparison_chart <- function(industry_GVA_final_full,
-                                         first_year_chart,
-                                         last_year_chart,
-                                         output_path) {
+generate_eu_comparison_chart <- function(
+    industry_GVA_final_full,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
     # Prepare the data
     EU_comparison <- industry_GVA_final_full %>%
         filter(
