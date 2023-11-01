@@ -119,964 +119,69 @@ industry_GVA_primary <- function(
         first_year_chart <- industry_GVA_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- industry_GVA_last_year(country = country_chart, final_year = last_year)
 
-        # Country data
-        industry_GVA_primary_country_data <-
-            industry_GVA_primary_complete %>%
-            filter(
-                geo == country_chart,
-                time <= year_chart
-            ) %>%
-            mutate(sector = factor(sector, levels = IDA_IND_SECTOR))
-
-        # Breakdown of energy consumption by fuel
-        ele_heat_input_breakdown_filtered <- ele_heat_input_breakdown %>%
-            filter(
-                geo == country_chart,
-                !energy_input == 0
-            )
-
-        # Table used to provide figures in the text of the report
-        table_ele_heat_share_primary_filtered <- ele_heat_share_primary %>%
-            filter(geo == country_chart) %>%
-            mutate(share_EHG = round(share_EHG, 3))
-
-        write.csv(table_ele_heat_share_primary_filtered, paste0(output_path, "Part2_share.csv"), row.names = FALSE)
-
-        table_ele_heat_input_breakdown_filtered <- ele_heat_input_breakdown_filtered %>%
-            mutate(
-                energy_input = round(energy_input, 1),
-                share_energy_input = round(share_energy_input, 3)
-            )
-
-        write.csv(table_ele_heat_input_breakdown_filtered, paste0(output_path, "Part2_fuel.csv"), row.names = FALSE)
-
-        # Table used to provide figures in the text of the report
-        table_industry_GVA_primary_country_data <- industry_GVA_primary_country_data %>%
-            mutate(
-                GVA = round(GVA, 2),
-                final_energy_consumption = round(final_energy_consumption, 2),
-                primary_energy_consumption = round(primary_energy_consumption, 2),
-                share_GVA = round(share_GVA, 2),
-                share_final_energy_consumption = round(share_final_energy_consumption, 2),
-                share_primary_energy_consumption = round(share_primary_energy_consumption, 2)
-            )
-
-        write.csv(table_industry_GVA_primary_country_data, paste0(output_path, "Part2_sector.csv"), row.names = FALSE)
-
-        # Chart indexed variation of total industry
-
-        industry_GVA_primary_country_indexed <-
-            industry_GVA_primary_full %>%
-            filter(
-                geo == country_chart,
-                sector == "Total",
-                time <= last_year_chart
-            ) %>%
-            select(-c(value, value_delta)) %>%
-            pivot_wider(names_from = measure, values_from = value_indexed) %>%
-            select(c(
-                geo,
-                time,
-                intensity,
-                transformation,
-                primary_energy_consumption,
-                GVA
-            )) %>%
-            rename(
-                "Final energy intensity" = "intensity",
-                "Primary to final energy transformation" = "transformation",
-                "Primary energy consumption" = "primary_energy_consumption",
-                "Gross Value Added" = "GVA"
-            )
-
-        year <- as.Date(as.character(industry_GVA_primary_country_indexed$time), "%Y")
-
-        p <- industry_GVA_primary_country_indexed %>%
-            cbind(year) %>%
-            select(-time) %>%
-            pivot_longer(
-                cols = -c(geo, year),
-                names_to = "measure",
-                values_to = "value"
-            ) %>%
-            ggplot() +
-            geom_blank(aes(x = year)) +
-            geom_line(aes(x = year, y = value, color = measure), size = 1) +
-            scale_color_manual(values = IndustryGVAPrimaryColorsIndex) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab(paste("Index (", industry_GVA_base_year(country = country_chart, first_year = first_year), "=1)")) +
-            ggtitle(paste("Indexed indicators for", country_name, "'s total industry energy consumption, \ngross value added and energy intensity variation, \nall years related to", as.character(first_year)))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure11B.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
+        generate_country_charts(
+            industry_GVA_primary_complete,
+            year_chart = year_chart,
+            country_name = country_name,
+            country_chart = country_chart,
+            output_path = output_path
         )
 
-        # Breakdown of electricity and heat input by fuel
-
-        year <-
-            as.Date(
-                as.character(ele_heat_input_breakdown_filtered$time),
-                "%Y"
-            )
-
-        p <- ele_heat_input_breakdown_filtered %>%
-            cbind(year) %>%
-            select(-time) %>%
-            mutate(year = lubridate::year(year)) %>%
-            # filter(!product %in% c("Nuclear", "Hydro", "Wind, solar, geothermal, etc.")) %>%
-            ggplot(aes(x = year, y = energy_input / 1000)) +
-            geom_bar(aes(fill = product), stat = "identity") +
-            scale_fill_manual(values = PrimaryProductsColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab(paste("Energy input to electricity and heat production (PJ)")) +
-            ggtitle(paste("Electricity and heat input by fuel for", country_name))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure09.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
+        generate_subsectors_charts(
+            industry_GVA_primary_full,
+            country_name = country_name,
+            country_chart = country_chart,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
         )
 
-        # 2 years
-
-        p <- ele_heat_input_breakdown_filtered %>%
-            filter(time %in% c(first_year, last_year)) %>%
-            ggplot(aes(x = factor(time), y = share_energy_input, fill = product)) +
-            geom_bar(position = "fill", stat = "identity") +
-            scale_fill_manual(values = PrimaryProductsColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::percent) +
-            geom_text(aes(label = paste0(round(share_energy_input * 100, 0), "%")),
-                position = position_stack(vjust = 0.5)
-            ) +
-            ylab(paste("Share in energy input to electricity and heat production ")) +
-            ggtitle(paste("Industry energy consumption by fuel for", country_name))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure09B.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
+        generate_ele_heat_consumption_breakdown_charts(
+            ele_heat_input_breakdown,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
         )
 
-        # Primary energy consumption by subsector
-
-        year <- as.Date(as.character(industry_GVA_primary_country_data$time), "%Y")
-
-        p <- industry_GVA_primary_country_data %>%
-            cbind(year) %>%
-            select(-time) %>%
-            mutate(year = lubridate::year(year)) %>%
-            ggplot(aes(x = year, y = primary_energy_consumption / 1000)) +
-            geom_bar(aes(fill = sector), stat = "identity") +
-            scale_fill_manual(values = ManufacturingSectorsColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab(paste("Energy consumption (PJ)")) +
-            ggtitle(paste("Industry primary energy consumption by subsector for", country_name))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure10.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # 2 years share
-
-        p <- industry_GVA_primary_country_data %>%
-            filter(time %in% c(first_year, last_year)) %>%
-            mutate(sector = factor(sector, levels = IDA_IND_SECTOR)) %>%
-            ggplot(aes(x = factor(time), y = share_primary_energy_consumption, fill = sector)) +
-            geom_bar(position = "fill", stat = "identity") +
-            scale_fill_manual(values = ManufacturingSectorsColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::percent) +
-            geom_text(aes(label = paste0(round(share_primary_energy_consumption * 100, 0), "%")),
-                position = position_stack(vjust = 0.5)
-            ) +
-            ylab(paste("Share of primary energy consumption")) +
-            ggtitle(paste("Industry gross value added by subsector for", country_name))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure10B.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-
-        # chart indexed variation by subsector
-
-        industry_GVA_primary_transformation <- industry_GVA_primary_full %>%
-            filter(
-                geo == country_chart,
-                sector != "Total",
-                measure == "transformation",
-                time <= last_year_chart
-            )
-
-        year <-
-            as.Date(
-                as.character(industry_GVA_primary_transformation$time),
-                "%Y"
-            )
-
-        p <- industry_GVA_primary_transformation %>%
-            cbind(year) %>%
-            select(-time) %>%
-            ggplot() +
-            geom_blank(aes(x = year)) +
-            geom_line(aes(x = year, y = value_indexed, color = sector), size = 1) +
-            scale_color_manual(values = ManufacturingSectorsColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab(paste("Index (", industry_GVA_base_year(country = country_chart, first_year = first_year), "=1)")) +
-            ggtitle(paste("Indexed variation for", country_name, "'s transformation in industry subsectors, \nall years related to", as.character(first_year)))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure11C.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # input for electricity and heat chart
-        electricity_input_comparison <- energy_EHG_TJ %>%
-            select(c(geo, time, E7000_INPUT)) %>%
-            pivot_wider(names_from = geo, values_from = E7000_INPUT)
-
-        min_EU <-
-            apply(select_if(electricity_input_comparison[, -1], is.numeric),
-                1,
-                min,
-                na.rm = TRUE
-            )
-        max_EU <-
-            apply(select_if(electricity_input_comparison[, -1], is.numeric),
-                1,
-                max,
-                na.rm = TRUE
-            )
-        avg_EU <-
-            apply(select_if(electricity_input_comparison[, -1], is.numeric),
-                1,
-                mean,
-                na.rm = TRUE
-            )
-        year <-
-            as.Date(as.character(electricity_input_comparison$time), "%Y")
-
-        electricity_input_comparison_full <- electricity_input_comparison %>%
-            cbind(min_EU) %>%
-            cbind(max_EU) %>%
-            cbind(avg_EU) %>%
-            cbind(year) %>%
-            mutate(transformation = "electricity") %>%
-            select(c(year, transformation, !!country_chart, avg_EU, min_EU, max_EU)) %>%
-            mutate(year = lubridate::year(year))
-
-        heat_input_comparison <- energy_EHG_TJ %>%
-            select(c(geo, time, H8000_INPUT)) %>%
-            pivot_wider(names_from = geo, values_from = H8000_INPUT)
-
-        min_EU <-
-            apply(select_if(heat_input_comparison[, -1], is.numeric), 1, min,
-                na.rm =
-                    TRUE
-            )
-        max_EU <-
-            apply(select_if(heat_input_comparison[, -1], is.numeric), 1, max,
-                na.rm =
-                    TRUE
-            )
-        avg_EU <-
-            apply(select_if(heat_input_comparison[, -1], is.numeric), 1, mean,
-                na.rm =
-                    TRUE
-            )
-        year <- as.Date(as.character(heat_input_comparison$time), "%Y")
-
-        heat_input_comparison_full <- heat_input_comparison %>%
-            cbind(min_EU) %>%
-            cbind(max_EU) %>%
-            cbind(avg_EU) %>%
-            cbind(year) %>%
-            mutate(transformation = "heat") %>%
-            select(c(year, transformation, !!country_chart, avg_EU, min_EU, max_EU)) %>%
-            mutate(year = lubridate::year(year))
-
-        ele_heat_comparison <- electricity_input_comparison_full %>%
-            rbind(heat_input_comparison_full)
-
-        # Plot the intensity comparison as line chart
-        p <- ele_heat_comparison %>%
-            ggplot(aes(x = year)) +
-            # geom_blank(aes(x = year)) +
-            geom_ribbon(aes(
-                x = year,
-                ymax = max_EU,
-                ymin = min_EU,
-                fill = "grey"
-            )) +
-            geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
-            geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
-            scale_fill_identity(guide = "legend", labels = c("Europe range")) +
-            scale_colour_manual(
-                values = c("black" = "black", "red" = "red"),
-                labels = c("Europe average", country_name)
-            ) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            ylab("Energy input (TJ input / TJ output)") +
-            scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-            # scale_y_continuous(labels = scales::number) +
-            expand_limits(y = 0) +
-            scale_y_continuous(breaks = scales::breaks_extended(Q = c(0, 1, 2, 3))) +
-            ggtitle(paste("Energy input for electricity and heat in", country_name, "compared to other European countries")) +
-            facet_wrap(~transformation)
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure13.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
+        generate_input_ele_heat_production_charts(
+            energy_EHG_TJ,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
         )
 
         # Simple effect decomposition
-
-        # prepare data for the simple effect chart
-        industry_GVA_primary_effects <- industry_GVA_primary_LMDI %>%
-            filter(
-                geo == country_chart,
-                time <= last_year_chart
-            ) %>%
-            rename(
-                "Activity" = "activity_effect",
-                "Intensity" = "intensity_effect",
-                "Structure" = "structural_effect",
-                "Transformation" = "transformation_effect"
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "Effect",
-                values_to = "value"
-            ) %>%
-            filter(
-                Effect == "Activity" |
-                    Effect == "Structure" |
-                    Effect == "Intensity" |
-                    Effect == "Transformation"
-            )
-
-        industry_GVA_primary_results <- industry_GVA_primary_LMDI %>%
-            filter(
-                geo == country_chart,
-                time <= last_year_chart
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "measure",
-                values_to = "value"
-            ) %>%
-            filter(measure == "primary_energy_consumption_var_obs")
-
-        # Plot the simple effect as bar chart
-        p <- ggplot(
-            data = industry_GVA_primary_effects,
-            aes(
-                x = factor(time),
-                y = value / 1000
-            )
-        ) +
-            geom_bar(aes(fill = Effect),
-                stat = "identity"
-            ) +
-            scale_fill_manual(values = IndustryGVAPrimaryColorsEffect) +
-            geom_point(
-                data = industry_GVA_primary_results,
-                aes(y = value / 1000),
-                size = 3
-            ) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                text = element_text(size = 15)
-            ) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Primary energy consumption variation (PJ)") +
-            ggtitle(paste("Decompostion analysis of", country_name, "'s industry primary energy consumption variation, \n  all years related to", as.character(first_year)))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure11D.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 1600,
-            res = 300
-        )
-
-        # Waterfall chart
-
-        Base_label <- paste0(as.character(first_year_chart), " level")
-        Result_label <- paste0(as.character(last_year_chart), " level")
-
-        # define the levels used in the waterfall chart
-        levels_waterfall <- c(
-            Base_label,
-            "Activity",
-            "Structure",
-            "Intensity",
-            "Transformation",
-            Result_label
-        )
-
-        # prepare data for the waterfall chart (see plotly waterfall for explanations)
-        industry_GVA_primary_Waterfall_data <-
-            industry_GVA_primary_LMDI %>%
-            filter(
-                geo == country_chart,
-                time == last_year_chart
-            ) %>%
-            rename(
-                "Activity" = "activity_effect",
-                "Intensity" = "intensity_effect",
-                "Structure" = "structural_effect",
-                "Transformation" = "transformation_effect",
-                !!Base_label := "value_primary_energy_consumption_total_baseline"
-            ) %>%
-            select(
-                !!Base_label,
-                "Activity",
-                "Structure",
-                "Intensity",
-                "Transformation"
-            ) %>%
-            pivot_longer(
-                cols = everything(),
-                names_to = "x",
-                values_to = "y"
-            ) %>%
-            mutate(x = factor(x, level = levels_waterfall)) %>%
-            mutate(text = paste(as.character(round(y, 2)), "TJ", sep = " ")) %>%
-            mutate(measure = case_when(
-                (x == !!Result_label) ~ "total",
-                TRUE ~ "relative"
-            ))
-
-        p <- industry_GVA_primary_Waterfall_data %>%
-            select(x, y) %>%
-            mutate(y = round(y / 1000, 2)) %>%
-            waterfall(calc_total = TRUE, rect_text_size = 1.5) +
-            theme_classic() +
-            # xlab("Effects") +
-            theme(
-                axis.title.x = element_blank(),
-                text = element_text(size = 15)
-            ) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Energy consumption level and effect (PJ)") +
-            scale_x_discrete(labels = levels_waterfall)
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure11.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 1600,
-            res = 300
-        )
-
-        # Intensity and transformation effect chart
-
-        # Prepare data for the intensity effect chart
-        industry_GVA_primary_intensity_effect <-
-            industry_GVA_primary_LMDI %>%
-            filter(
-                geo == country_chart,
-                time >= first_year,
-                time <= last_year
-            ) %>%
-            select(
-                geo,
-                time,
-                value_primary_energy_consumption_total_end,
-                intensity_effect,
-                transformation_effect
-            ) %>%
-            mutate(
-                "Without intensity and transformation effect" = value_primary_energy_consumption_total_end - intensity_effect - transformation_effect
-            ) %>%
-            rename("Actual primary energy consumption" = value_primary_energy_consumption_total_end) %>%
-            select(-c(intensity_effect, transformation_effect)) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "measure",
-                values_to = "value"
-            ) %>%
-            mutate(measure = factor(
-                measure,
-                levels = c(
-                    "Without intensity and transformation effect",
-                    "Actual primary energy consumption"
-                )
-            )) %>%
-            arrange(measure)
-
-        # Plot the intensity effect as area chart
-        p <- industry_GVA_primary_intensity_effect %>%
-            ggplot() +
-            geom_bar(
-                data = (industry_GVA_primary_intensity_effect %>%
-                    filter(measure == "Actual primary energy consumption")),
-                aes(
-                    y = value / 1000,
-                    x = time,
-                    fill = measure
-                ),
-                stat = "identity",
-                alpha = 0.5
-            ) +
-            scale_fill_manual(values = c("Actual primary energy consumption" = "blue4")) +
-            geom_point(
-                data = (industry_GVA_primary_intensity_effect %>%
-                    filter(
-                        measure == "Without intensity and transformation effect",
-                        time >= first_year_chart,
-                        time <= last_year_chart
-                    )
-                ),
-                aes(
-                    y = value / 1000,
-                    x = time,
-                    color = measure
-                ),
-                size = 3,
-                alpha = 0.5
-            ) +
-            scale_color_manual(values = c("Without intensity and transformation effect" = "green4")) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Primary energy consumption (PJ)") +
-            expand_limits(y = 0) +
-            ggtitle(paste("Actual primary energy consumption in the industry vs theoretical \n(without energy intensity and transformation improvements) for", country_name))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure12.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # Total intensity comparison chart
-
-        # Total transformation comparison chart
-        # prepare data for the intensity comparison chart
-        industry_GVA_primary_transformation_comparison <-
-            industry_GVA_primary_full %>%
-            filter(
-                sector == "Total",
-                measure == "transformation"
-            ) %>%
-            select(-c(value_indexed, value_delta)) %>%
-            pivot_wider(names_from = geo, values_from = value)
-
-        min_EU <-
-            apply(
-                select_if(industry_GVA_primary_transformation_comparison[, -1], is.numeric),
-                1,
-                min
-            )
-        max_EU <-
-            apply(
-                select_if(industry_GVA_primary_transformation_comparison[, -1], is.numeric),
-                1,
-                max
-            )
-        avg_EU <-
-            apply(
-                select_if(industry_GVA_primary_transformation_comparison[, -1], is.numeric),
-                1,
-                mean
-            )
-        year <-
-            as.Date(
-                as.character(industry_GVA_primary_transformation_comparison$time),
-                "%Y"
-            )
-
-        industry_GVA_primary_transformation_comparison <-
-            industry_GVA_primary_transformation_comparison %>%
-            cbind(min_EU) %>%
-            cbind(max_EU) %>%
-            cbind(avg_EU) %>%
-            cbind(year) %>%
-            select(c(year, !!country_chart, min_EU, max_EU)) %>%
-            mutate(year = lubridate::year(year))
-
-        # Plot the intensity comparison as line chart
-        p <- industry_GVA_primary_transformation_comparison %>%
-            ggplot(aes(x = year)) +
-            # geom_blank(aes(x = year)) +
-            geom_ribbon(aes(
-                x = year,
-                ymax = max_EU,
-                ymin = min_EU,
-                fill = "grey"
-            )) +
-            geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
-            geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
-            scale_fill_identity(guide = "legend", labels = c("Europe range")) +
-            scale_colour_manual(
-                values = c("black" = "black", "red" = "red"),
-                labels = c("Europe average", country_name)
-            ) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            ylab("Energy transformation efficiency") +
-            scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ggtitle(paste("Energy transformation efficiency in", country_name, "'s manufacturing industry compared to \nother European countries"))
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure13B.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # Sectoral efficiency comparison chart
-
-        # Prepare data for the efficiency comparison chart
-        industry_GVA_primary_efficiency_comparison_sector <-
-            industry_GVA_primary_complete %>%
-            mutate(sector = factor(sector, levels = IDA_IND_SECTOR)) %>%
-            select(-c(
-                final_energy_consumption, primary_energy_consumption,
-                total_final_energy_consumption, total_primary_energy_consumption,
-                share_final_energy_consumption, share_primary_energy_consumption,
-                GVA, total_GVA, share_GVA,
-                intensity
-            )) %>%
-            pivot_wider(names_from = geo, values_from = transformation)
-
-        min_EU <-
-            apply(
-                select_if(
-                    industry_GVA_primary_efficiency_comparison_sector[, -1],
-                    is.numeric
-                ),
-                1,
-                min,
-                na.rm = TRUE
-            )
-        max_EU <-
-            apply(
-                select_if(
-                    industry_GVA_primary_efficiency_comparison_sector[, -1],
-                    is.numeric
-                ),
-                1,
-                max,
-                na.rm = TRUE
-            )
-        avg_EU <-
-            apply(
-                select_if(
-                    industry_GVA_primary_efficiency_comparison_sector[, -1],
-                    is.numeric
-                ),
-                1,
-                mean,
-                na.rm = TRUE
-            )
-        year <-
-            as.Date(
-                as.character(industry_GVA_primary_efficiency_comparison_sector$time),
-                "%Y"
-            )
-
-        industry_GVA_primary_efficiency_comparison_sector <-
-            industry_GVA_primary_efficiency_comparison_sector %>%
-            cbind(min_EU) %>%
-            cbind(max_EU) %>%
-            cbind(avg_EU) %>%
-            cbind(year) %>%
-            select(c(sector, year, !!country_chart, min_EU, max_EU)) %>%
-            mutate(year = lubridate::year(year))
-
-        # Plot the efficiency comparison as line chart
-        p <- industry_GVA_primary_efficiency_comparison_sector %>%
-            ggplot(aes(x = year)) +
-            # geom_blank(aes(x = year)) +
-            geom_ribbon(aes(
-                x = year,
-                ymax = max_EU,
-                ymin = min_EU,
-                fill = "grey"
-            )) +
-            geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
-            geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
-            scale_fill_identity(guide = "legend", labels = c("Europe range")) +
-            scale_colour_manual(
-                values = c("black" = "black", "red" = "red"),
-                labels = c("Europe average", country_name)
-            ) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = c(0.75, 0.05),
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            ylab("Primary energy intensity (MJ / EUR") +
-            scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ggtitle(paste("Energy transformation efficiency in", country_name, "'s manufacturing industry compared to \nother European countries")) +
-            facet_wrap(~sector, scales = "free", ncol = 3)
-
-        print_chart(p,
-            filename = paste0(country_chart, "_Figure13C.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 3200,
-            res = 300
+        generate_primary_effects_charts(
+            industry_GVA_primary_LMDI,
+            country_chart = country_chart,
+            country_name = country_name,
+            year_chart = year_chart,
+            first_year = first_year,
+            last_year = last_year,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
         )
     }
 
     if (country == "EU27") {
         output_path <- paste0(chart_path, "/EU27/")
 
-        # Data coverage chart
-        p <- industry_GVA_primary_complete %>%
-            filter(
-                sector != "Total",
-                geo != "EU27",
-                time <= year_chart
-            ) %>%
-            select(c("geo", "time", "sector", "primary_energy_consumption", "GVA")) %>%
-            replace(is.na(.), 0) %>%
-            mutate(
-                missing =
-                    case_when(
-                        (primary_energy_consumption > 0 & GVA > 0) |
-                            (primary_energy_consumption == 0 & GVA == 0) ~ 0,
-                        TRUE ~ 1
-                    )
-            ) %>%
-            select(-c("primary_energy_consumption", "GVA")) %>%
-            group_by(geo, time) %>%
-            summarize(missing = sum(missing)) %>%
-            ggplot(aes(
-                x = reorder(geo, desc(geo)),
-                y = factor(time),
-                fill = missing
-            )) +
-            coord_flip() +
-            geom_tile() +
-            theme_classic() +
-            scale_fill_gradient(
-                low = "white",
-                high = "red",
-                limits = c(0, 13),
-                breaks = scales::pretty_breaks(n = 4)(0:13)
-            ) +
-            theme(
-                axis.title.x = element_blank(),
-                axis.title.y = element_blank()
-            ) +
-            labs(fill = "Missing sub-sectors") +
-            ggtitle("Completeness of coverage (energy and activity data) for European countries across years")
-
-        print_chart(p,
-            filename = "EU27_Figure13D.jpg",
-            output_path = output_path,
-            width = 2400,
-            height = 3200,
-            res = 300
+        generate_coverage_chart(
+            industry_GVA_primary_complete,
+            year_chart = year_chart,
+            output_path = output_path
         )
 
-        # Prepare the data
-        EU_comparison <- energy_EHG_TJ %>%
-            filter(
-                time %in% c(first_year_chart, last_year_chart),
-                geo != "EU27"
-            ) %>%
-            merge(eu_countries, by.x = "geo", by.y = "code") %>%
-            select(-c("geo", "label")) %>%
-            pivot_longer(
-                cols = c("E7000_INPUT", "H8000_INPUT"),
-                names_to = "measure",
-                values_to = "value"
-            )
-
-        # Rank the countries by intensity on last year
-        country_ranked_ELE <- EU_comparison %>%
-            filter(
-                time == last_year_chart,
-                measure == "E7000_INPUT"
-            ) %>%
-            arrange(value) %>%
-            pull(name)
-
-        # Rank the countries by intensity on last year
-        country_ranked_HEAT <- EU_comparison %>%
-            filter(
-                time == last_year_chart,
-                measure == "H8000_INPUT"
-            ) %>%
-            arrange(value) %>%
-            pull(name)
-
-        # Electricity charts
-        electricity_chart <- EU_comparison %>%
-            filter(measure == "E7000_INPUT") %>%
-            ggplot(aes(
-                x = factor(name, levels = country_ranked_ELE),
-                y = value,
-                color = as.factor(time)
-            )) +
-            geom_point() +
-            geom_line(aes(group = name), colour = "grey") +
-            coord_flip() +
-            theme_classic() +
-            theme(
-                axis.title.y = element_blank(),
-                legend.title = element_blank(),
-                legend.position = c(0.8, 0.2),
-                legend.box = "horizontal"
-            ) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Energy input (TJ input / TJ output)") +
-            ggtitle(paste("Energy input for electricity in European countries"))
-
-        # Heat charts
-        heat_chart <- EU_comparison %>%
-            filter(measure == "H8000_INPUT") %>%
-            ggplot(aes(
-                x = factor(name, levels = country_ranked_HEAT),
-                y = value,
-                color = as.factor(time)
-            )) +
-            geom_point() +
-            geom_line(aes(group = name), colour = "grey") +
-            coord_flip() +
-            theme_classic() +
-            theme(
-                axis.title.y = element_blank(),
-                legend.title = element_blank(),
-                legend.position = c(0.8, 0.2),
-                legend.box = "horizontal"
-            ) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Energy input (TJ input / TJ output)") +
-            ggtitle(paste("Energy input for heat in European countries"))
-
-        p <- ggarrange(
-            electricity_chart,
-            heat_chart,
-            ncol = 2,
-            nrow = 1,
-            labels = c("Electricity", "Heat"),
-            label.x = 0.5,
-            align = "hv",
-            common.legend = TRUE,
-            legend = "bottom"
-        )
-
-        print_chart(p,
-            filename = "EU27_Figure13E.jpg",
-            output_path = output_path,
-            width = 2400,
-            height = 3200,
-            res = 300
+        generate_eu_comparison_chart(
+            energy_EHG_TJ,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
         )
     }
 }
@@ -1085,8 +190,7 @@ prepare_ele_heat_share_primary <- function(
     nrg_bal_c,
     first_year,
     last_year,
-    country_list){
-
+    country_list) {
     nrg_bal_c %>%
         filter(
             geo %in% country_list,
@@ -1112,8 +216,7 @@ prepare_ele_heat_input_breakdown <- function(
     nrg_bal_c,
     first_year,
     last_year,
-    country_list
-){
+    country_list) {
     nrg_bal_c %>%
         filter(
             geo %in% country_list,
@@ -1235,11 +338,11 @@ prepare_ele_heat_input_breakdown <- function(
 }
 
 prepare_energy_EHG_TJ <- function(
-    nrg_bal_c, 
+    nrg_bal_c,
     first_year,
     last_year,
-    country_list){
-        nrg_bal_c %>%
+    country_list) {
+    nrg_bal_c %>%
         filter(
             # take only EU countries
             geo %in% country_list,
@@ -1370,8 +473,7 @@ prepare_industry_energy_primary <- function(
     nrg_bal_c,
     first_year,
     last_year,
-    country_list
-){
+    country_list) {
     nrg_bal_c %>%
         filter(
             geo %in% country_list,
@@ -1493,7 +595,7 @@ prepare_industry_energy_primary <- function(
 
 prepare_industry_GVA_primary_complete <- function(df) {
     df %>%
-    # correcting for missing GVA / Energy
+        # correcting for missing GVA / Energy
         mutate(
             GVA = case_when(
                 (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
@@ -1531,11 +633,110 @@ prepare_industry_GVA_primary_complete <- function(df) {
             share_primary_energy_consumption = primary_energy_consumption / total_primary_energy_consumption,
             share_GVA = GVA / total_GVA
         )
+
+    # Sectoral efficiency comparison chart
+
+    # Prepare data for the efficiency comparison chart
+    industry_GVA_primary_efficiency_comparison_sector <-
+        industry_GVA_primary_complete %>%
+        mutate(sector = factor(sector, levels = IDA_IND_SECTOR)) %>%
+        select(-c(
+            final_energy_consumption, primary_energy_consumption,
+            total_final_energy_consumption, total_primary_energy_consumption,
+            share_final_energy_consumption, share_primary_energy_consumption,
+            GVA, total_GVA, share_GVA,
+            intensity
+        )) %>%
+        pivot_wider(names_from = geo, values_from = transformation)
+
+    min_EU <-
+        apply(
+            select_if(
+                industry_GVA_primary_efficiency_comparison_sector[, -1],
+                is.numeric
+            ),
+            1,
+            min,
+            na.rm = TRUE
+        )
+    max_EU <-
+        apply(
+            select_if(
+                industry_GVA_primary_efficiency_comparison_sector[, -1],
+                is.numeric
+            ),
+            1,
+            max,
+            na.rm = TRUE
+        )
+    avg_EU <-
+        apply(
+            select_if(
+                industry_GVA_primary_efficiency_comparison_sector[, -1],
+                is.numeric
+            ),
+            1,
+            mean,
+            na.rm = TRUE
+        )
+    year <-
+        as.Date(
+            as.character(industry_GVA_primary_efficiency_comparison_sector$time),
+            "%Y"
+        )
+
+    industry_GVA_primary_efficiency_comparison_sector <-
+        industry_GVA_primary_efficiency_comparison_sector %>%
+        cbind(min_EU) %>%
+        cbind(max_EU) %>%
+        cbind(avg_EU) %>%
+        cbind(year) %>%
+        select(c(sector, year, !!country_chart, min_EU, max_EU)) %>%
+        mutate(year = lubridate::year(year))
+
+    # Plot the efficiency comparison as line chart
+    p <- industry_GVA_primary_efficiency_comparison_sector %>%
+        ggplot(aes(x = year)) +
+        # geom_blank(aes(x = year)) +
+        geom_ribbon(aes(
+            x = year,
+            ymax = max_EU,
+            ymin = min_EU,
+            fill = "grey"
+        )) +
+        geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
+        geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
+        scale_fill_identity(guide = "legend", labels = c("Europe range")) +
+        scale_colour_manual(
+            values = c("black" = "black", "red" = "red"),
+            labels = c("Europe average", country_name)
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = c(0.75, 0.05),
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        ylab("Primary energy intensity (MJ / EUR") +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ggtitle(paste("Energy transformation efficiency in", country_name, "'s manufacturing industry compared to \nother European countries")) +
+        facet_wrap(~sector, scales = "free", ncol = 3)
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure13C.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 3200,
+        res = 300
+    )
 }
 
 augment_industry_GVA_primary <- function(df) {
     df %>%
-    # For each country and each year
+        # For each country and each year
         group_by(geo, time) %>%
         mutate(
             # Calculate the total energy consumption and value added of the overall industry sector, as the sum of all subsectors selected
@@ -1562,7 +763,7 @@ augment_industry_GVA_primary <- function(df) {
         ungroup()
 }
 
-add_total_sector_primary <- function(df){
+add_total_sector_primary <- function(df) {
     group_by(geo, time) %>%
         summarize(
             GVA = sum(GVA, na.rm = TRUE),
@@ -1577,9 +778,9 @@ add_total_sector_primary <- function(df){
         mutate(sector = "Total")
 }
 
-add_index_delta_primary(df){
+add_index_delta_primary <- function(df) {
     df %>%
-    # calculate intensity again, to include the total intensity
+        # calculate intensity again, to include the total intensity
         mutate(
             intensity = case_when(
                 (GVA == 0 & final_energy_consumption > 0) ~ NA_real_,
@@ -1610,7 +811,7 @@ add_index_delta_primary(df){
         ungroup()
 }
 
-apply_LMDI <- function(df){
+apply_LMDI <- function(df) {
     df %>%
         # Reshape to wide (moving all measures calculated in Value, index and delta, all in separate columns)
         pivot_wider(
@@ -1712,4 +913,913 @@ apply_LMDI <- function(df){
                     # na.rm = TRUE
                 )
         )
+}
+
+generate_country_charts <- function(
+    industry_GVA_primary_complete,
+    year_chart,
+    country_name,
+    country_chart,
+    output_path) {
+    # Country data
+    industry_GVA_primary_country_data <-
+        industry_GVA_primary_complete %>%
+        filter(
+            geo == country_chart,
+            time <= year_chart
+        ) %>%
+        mutate(sector = factor(sector, levels = IDA_IND_SECTOR))
+
+    # Table used to provide figures in the text of the report
+    table_industry_GVA_primary_country_data <- industry_GVA_primary_country_data %>%
+        mutate(
+            GVA = round(GVA, 2),
+            final_energy_consumption = round(final_energy_consumption, 2),
+            primary_energy_consumption = round(primary_energy_consumption, 2),
+            share_GVA = round(share_GVA, 2),
+            share_final_energy_consumption = round(share_final_energy_consumption, 2),
+            share_primary_energy_consumption = round(share_primary_energy_consumption, 2)
+        )
+
+    write.csv(
+        table_industry_GVA_primary_country_data,
+        paste0(output_path, "Part2_sector.csv"),
+        row.names = FALSE
+    )
+
+    # Primary energy consumption by subsector
+
+    year <- as.Date(as.character(industry_GVA_primary_country_data$time), "%Y")
+
+    p <- industry_GVA_primary_country_data %>%
+        cbind(year) %>%
+        select(-time) %>%
+        mutate(year = lubridate::year(year)) %>%
+        ggplot(aes(x = year, y = primary_energy_consumption / 1000)) +
+        geom_bar(aes(fill = sector), stat = "identity") +
+        scale_fill_manual(values = ManufacturingSectorsColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab(paste("Energy consumption (PJ)")) +
+        ggtitle(paste("Industry primary energy consumption by subsector for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure10.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+    # 2 years share
+
+    p <- industry_GVA_primary_country_data %>%
+        filter(time %in% c(first_year, last_year)) %>%
+        mutate(sector = factor(sector, levels = IDA_IND_SECTOR)) %>%
+        ggplot(aes(x = factor(time), y = share_primary_energy_consumption, fill = sector)) +
+        geom_bar(position = "fill", stat = "identity") +
+        scale_fill_manual(values = ManufacturingSectorsColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::percent) +
+        geom_text(aes(label = paste0(round(share_primary_energy_consumption * 100, 0), "%")),
+            position = position_stack(vjust = 0.5)
+        ) +
+        ylab(paste("Share of primary energy consumption")) +
+        ggtitle(paste("Industry gross value added by subsector for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure10B.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_subsectors_charts <- function(
+    industry_GVA_primary_full,
+    country_chart,
+    country_name,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
+    # Chart indexed variation of total industry
+    industry_GVA_primary_country_indexed <-
+        industry_GVA_primary_full %>%
+        filter(
+            geo == country_chart,
+            sector == "Total",
+            time <= last_year_chart
+        ) %>%
+        select(-c(value, value_delta)) %>%
+        pivot_wider(names_from = measure, values_from = value_indexed) %>%
+        select(c(
+            geo,
+            time,
+            intensity,
+            transformation,
+            primary_energy_consumption,
+            GVA
+        )) %>%
+        rename(
+            "Final energy intensity" = "intensity",
+            "Primary to final energy transformation" = "transformation",
+            "Primary energy consumption" = "primary_energy_consumption",
+            "Gross Value Added" = "GVA"
+        )
+
+    year <- as.Date(as.character(industry_GVA_primary_country_indexed$time), "%Y")
+
+    p <- industry_GVA_primary_country_indexed %>%
+        cbind(year) %>%
+        select(-time) %>%
+        pivot_longer(
+            cols = -c(geo, year),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        ggplot() +
+        geom_blank(aes(x = year)) +
+        geom_line(aes(x = year, y = value, color = measure), size = 1) +
+        scale_color_manual(values = IndustryGVAPrimaryColorsIndex) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab(paste("Index (", industry_GVA_base_year(country = country_chart, first_year = first_year), "=1)")) +
+        ggtitle(paste("Indexed indicators for", country_name, "'s total industry energy consumption, \ngross value added and energy intensity variation, \nall years related to", as.character(first_year)))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure11B.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+    # chart indexed variation by subsector
+    industry_GVA_primary_transformation <- industry_GVA_primary_full %>%
+        filter(
+            geo == country_chart,
+            sector != "Total",
+            measure == "transformation",
+            time <= last_year_chart
+        )
+
+    year <-
+        as.Date(
+            as.character(industry_GVA_primary_transformation$time),
+            "%Y"
+        )
+
+    p <- industry_GVA_primary_transformation %>%
+        cbind(year) %>%
+        select(-time) %>%
+        ggplot() +
+        geom_blank(aes(x = year)) +
+        geom_line(aes(x = year, y = value_indexed, color = sector), size = 1) +
+        scale_color_manual(values = ManufacturingSectorsColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab(paste("Index (", industry_GVA_base_year(country = country_chart, first_year = first_year), "=1)")) +
+        ggtitle(paste("Indexed variation for", country_name, "'s transformation in industry subsectors, \nall years related to", as.character(first_year)))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure11C.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+    # Total intensity comparison chart
+
+    # Total transformation comparison chart
+    # prepare data for the intensity comparison chart
+    industry_GVA_primary_transformation_comparison <-
+        industry_GVA_primary_full %>%
+        filter(
+            sector == "Total",
+            measure == "transformation"
+        ) %>%
+        select(-c(value_indexed, value_delta)) %>%
+        pivot_wider(names_from = geo, values_from = value)
+
+    min_EU <-
+        apply(
+            select_if(industry_GVA_primary_transformation_comparison[, -1], is.numeric),
+            1,
+            min
+        )
+    max_EU <-
+        apply(
+            select_if(industry_GVA_primary_transformation_comparison[, -1], is.numeric),
+            1,
+            max
+        )
+    avg_EU <-
+        apply(
+            select_if(industry_GVA_primary_transformation_comparison[, -1], is.numeric),
+            1,
+            mean
+        )
+    year <-
+        as.Date(
+            as.character(industry_GVA_primary_transformation_comparison$time),
+            "%Y"
+        )
+
+    industry_GVA_primary_transformation_comparison <-
+        industry_GVA_primary_transformation_comparison %>%
+        cbind(min_EU) %>%
+        cbind(max_EU) %>%
+        cbind(avg_EU) %>%
+        cbind(year) %>%
+        select(c(year, !!country_chart, min_EU, max_EU)) %>%
+        mutate(year = lubridate::year(year))
+
+    # Plot the intensity comparison as line chart
+    p <- industry_GVA_primary_transformation_comparison %>%
+        ggplot(aes(x = year)) +
+        # geom_blank(aes(x = year)) +
+        geom_ribbon(aes(
+            x = year,
+            ymax = max_EU,
+            ymin = min_EU,
+            fill = "grey"
+        )) +
+        geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
+        geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
+        scale_fill_identity(guide = "legend", labels = c("Europe range")) +
+        scale_colour_manual(
+            values = c("black" = "black", "red" = "red"),
+            labels = c("Europe average", country_name)
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        ylab("Energy transformation efficiency") +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ggtitle(paste("Energy transformation efficiency in", country_name, "'s manufacturing industry compared to \nother European countries"))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure13B.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_ele_heat_consumption_breakdown_charts <- function(
+    ele_heat_input_breakdown,
+    country_chart,
+    country_name,
+    first_year,
+    last_year,
+    output_path) {
+    # Breakdown of energy consumption by fuel
+    ele_heat_input_breakdown_filtered <- ele_heat_input_breakdown %>%
+        filter(
+            geo == country_chart,
+            !energy_input == 0
+        )
+
+    # Table used to provide figures in the text of the report
+    table_ele_heat_share_primary_filtered <- ele_heat_share_primary %>%
+        filter(geo == country_chart) %>%
+        mutate(share_EHG = round(share_EHG, 3))
+
+    write.csv(table_ele_heat_share_primary_filtered, paste0(output_path, "Part2_share.csv"), row.names = FALSE)
+
+    table_ele_heat_input_breakdown_filtered <- ele_heat_input_breakdown_filtered %>%
+        mutate(
+            energy_input = round(energy_input, 1),
+            share_energy_input = round(share_energy_input, 3)
+        )
+
+    write.csv(table_ele_heat_input_breakdown_filtered, paste0(output_path, "Part2_fuel.csv"), row.names = FALSE)
+
+    # Breakdown of electricity and heat input by fuel
+
+    year <-
+        as.Date(
+            as.character(ele_heat_input_breakdown_filtered$time),
+            "%Y"
+        )
+
+    p <- ele_heat_input_breakdown_filtered %>%
+        cbind(year) %>%
+        select(-time) %>%
+        mutate(year = lubridate::year(year)) %>%
+        # filter(!product %in% c("Nuclear", "Hydro", "Wind, solar, geothermal, etc.")) %>%
+        ggplot(aes(x = year, y = energy_input / 1000)) +
+        geom_bar(aes(fill = product), stat = "identity") +
+        scale_fill_manual(values = PrimaryProductsColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab(paste("Energy input to electricity and heat production (PJ)")) +
+        ggtitle(paste("Electricity and heat input by fuel for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure09.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+    # 2 years
+
+    p <- ele_heat_input_breakdown_filtered %>%
+        filter(time %in% c(first_year, last_year)) %>%
+        ggplot(aes(x = factor(time), y = share_energy_input, fill = product)) +
+        geom_bar(position = "fill", stat = "identity") +
+        scale_fill_manual(values = PrimaryProductsColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::percent) +
+        geom_text(aes(label = paste0(round(share_energy_input * 100, 0), "%")),
+            position = position_stack(vjust = 0.5)
+        ) +
+        ylab(paste("Share in energy input to electricity and heat production ")) +
+        ggtitle(paste("Industry energy consumption by fuel for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure09B.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_ele_heat_consumption_breakdown_charts <- function(
+    ele_heat_input_breakdown,
+    country_chart,
+    country_name,
+    first_year,
+    last_year,
+    output_path) {
+    # input for electricity and heat chart
+    electricity_input_comparison <- energy_EHG_TJ %>%
+        select(c(geo, time, E7000_INPUT)) %>%
+        pivot_wider(names_from = geo, values_from = E7000_INPUT)
+
+    min_EU <-
+        apply(select_if(electricity_input_comparison[, -1], is.numeric),
+            1,
+            min,
+            na.rm = TRUE
+        )
+    max_EU <-
+        apply(select_if(electricity_input_comparison[, -1], is.numeric),
+            1,
+            max,
+            na.rm = TRUE
+        )
+    avg_EU <-
+        apply(select_if(electricity_input_comparison[, -1], is.numeric),
+            1,
+            mean,
+            na.rm = TRUE
+        )
+    year <-
+        as.Date(as.character(electricity_input_comparison$time), "%Y")
+
+    electricity_input_comparison_full <- electricity_input_comparison %>%
+        cbind(min_EU) %>%
+        cbind(max_EU) %>%
+        cbind(avg_EU) %>%
+        cbind(year) %>%
+        mutate(transformation = "electricity") %>%
+        select(c(year, transformation, !!country_chart, avg_EU, min_EU, max_EU)) %>%
+        mutate(year = lubridate::year(year))
+
+    heat_input_comparison <- energy_EHG_TJ %>%
+        select(c(geo, time, H8000_INPUT)) %>%
+        pivot_wider(names_from = geo, values_from = H8000_INPUT)
+
+    min_EU <-
+        apply(select_if(heat_input_comparison[, -1], is.numeric), 1, min,
+            na.rm =
+                TRUE
+        )
+    max_EU <-
+        apply(select_if(heat_input_comparison[, -1], is.numeric), 1, max,
+            na.rm =
+                TRUE
+        )
+    avg_EU <-
+        apply(select_if(heat_input_comparison[, -1], is.numeric), 1, mean,
+            na.rm =
+                TRUE
+        )
+    year <- as.Date(as.character(heat_input_comparison$time), "%Y")
+
+    heat_input_comparison_full <- heat_input_comparison %>%
+        cbind(min_EU) %>%
+        cbind(max_EU) %>%
+        cbind(avg_EU) %>%
+        cbind(year) %>%
+        mutate(transformation = "heat") %>%
+        select(c(year, transformation, !!country_chart, avg_EU, min_EU, max_EU)) %>%
+        mutate(year = lubridate::year(year))
+
+    ele_heat_comparison <- electricity_input_comparison_full %>%
+        rbind(heat_input_comparison_full)
+
+    # Plot the intensity comparison as line chart
+    p <- ele_heat_comparison %>%
+        ggplot(aes(x = year)) +
+        # geom_blank(aes(x = year)) +
+        geom_ribbon(aes(
+            x = year,
+            ymax = max_EU,
+            ymin = min_EU,
+            fill = "grey"
+        )) +
+        geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
+        geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
+        scale_fill_identity(guide = "legend", labels = c("Europe range")) +
+        scale_colour_manual(
+            values = c("black" = "black", "red" = "red"),
+            labels = c("Europe average", country_name)
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        ylab("Energy input (TJ input / TJ output)") +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        # scale_y_continuous(labels = scales::number) +
+        expand_limits(y = 0) +
+        scale_y_continuous(breaks = scales::breaks_extended(Q = c(0, 1, 2, 3))) +
+        ggtitle(paste("Energy input for electricity and heat in", country_name, "compared to other European countries")) +
+        facet_wrap(~transformation)
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure13.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_final_effects_charts <- function(
+    industry_GVA_primary_LMDI,
+    country_chart,
+    country_name,
+    year_chart,
+    first_year,
+    last_year,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
+    # prepare data for the simple effect chart
+    industry_GVA_primary_effects <- industry_GVA_primary_LMDI %>%
+        filter(
+            geo == country_chart,
+            time <= last_year_chart
+        ) %>%
+        rename(
+            "Activity" = "activity_effect",
+            "Intensity" = "intensity_effect",
+            "Structure" = "structural_effect",
+            "Transformation" = "transformation_effect"
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "Effect",
+            values_to = "value"
+        ) %>%
+        filter(
+            Effect == "Activity" |
+                Effect == "Structure" |
+                Effect == "Intensity" |
+                Effect == "Transformation"
+        )
+
+    industry_GVA_primary_results <- industry_GVA_primary_LMDI %>%
+        filter(
+            geo == country_chart,
+            time <= last_year_chart
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        filter(measure == "primary_energy_consumption_var_obs")
+
+    # Plot the simple effect as bar chart
+    p <- ggplot(
+        data = industry_GVA_primary_effects,
+        aes(
+            x = factor(time),
+            y = value / 1000
+        )
+    ) +
+        geom_bar(aes(fill = Effect),
+            stat = "identity"
+        ) +
+        scale_fill_manual(values = IndustryGVAPrimaryColorsEffect) +
+        geom_point(
+            data = industry_GVA_primary_results,
+            aes(y = value / 1000),
+            size = 3
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            text = element_text(size = 15)
+        ) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Primary energy consumption variation (PJ)") +
+        ggtitle(paste("Decompostion analysis of", country_name, "'s industry primary energy consumption variation, \n  all years related to", as.character(first_year)))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure11D.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 1600,
+        res = 300
+    )
+
+    # Waterfall chart
+
+    Base_label <- paste0(as.character(first_year_chart), " level")
+    Result_label <- paste0(as.character(last_year_chart), " level")
+
+    # define the levels used in the waterfall chart
+    levels_waterfall <- c(
+        Base_label,
+        "Activity",
+        "Structure",
+        "Intensity",
+        "Transformation",
+        Result_label
+    )
+
+    # prepare data for the waterfall chart (see plotly waterfall for explanations)
+    industry_GVA_primary_Waterfall_data <-
+        industry_GVA_primary_LMDI %>%
+        filter(
+            geo == country_chart,
+            time == last_year_chart
+        ) %>%
+        rename(
+            "Activity" = "activity_effect",
+            "Intensity" = "intensity_effect",
+            "Structure" = "structural_effect",
+            "Transformation" = "transformation_effect",
+            !!Base_label := "value_primary_energy_consumption_total_baseline"
+        ) %>%
+        select(
+            !!Base_label,
+            "Activity",
+            "Structure",
+            "Intensity",
+            "Transformation"
+        ) %>%
+        pivot_longer(
+            cols = everything(),
+            names_to = "x",
+            values_to = "y"
+        ) %>%
+        mutate(x = factor(x, level = levels_waterfall)) %>%
+        mutate(text = paste(as.character(round(y, 2)), "TJ", sep = " ")) %>%
+        mutate(measure = case_when(
+            (x == !!Result_label) ~ "total",
+            TRUE ~ "relative"
+        ))
+
+    p <- industry_GVA_primary_Waterfall_data %>%
+        select(x, y) %>%
+        mutate(y = round(y / 1000, 2)) %>%
+        waterfall(calc_total = TRUE, rect_text_size = 1.5) +
+        theme_classic() +
+        # xlab("Effects") +
+        theme(
+            axis.title.x = element_blank(),
+            text = element_text(size = 15)
+        ) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Energy consumption level and effect (PJ)") +
+        scale_x_discrete(labels = levels_waterfall)
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure11.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 1600,
+        res = 300
+    )
+
+    # Intensity and transformation effect chart
+
+    # Prepare data for the intensity effect chart
+    industry_GVA_primary_intensity_effect <-
+        industry_GVA_primary_LMDI %>%
+        filter(
+            geo == country_chart,
+            time >= first_year,
+            time <= last_year
+        ) %>%
+        select(
+            geo,
+            time,
+            value_primary_energy_consumption_total_end,
+            intensity_effect,
+            transformation_effect
+        ) %>%
+        mutate(
+            "Without intensity and transformation effect" = value_primary_energy_consumption_total_end - intensity_effect - transformation_effect
+        ) %>%
+        rename("Actual primary energy consumption" = value_primary_energy_consumption_total_end) %>%
+        select(-c(intensity_effect, transformation_effect)) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        mutate(measure = factor(
+            measure,
+            levels = c(
+                "Without intensity and transformation effect",
+                "Actual primary energy consumption"
+            )
+        )) %>%
+        arrange(measure)
+
+    # Plot the intensity effect as area chart
+    p <- industry_GVA_primary_intensity_effect %>%
+        ggplot() +
+        geom_bar(
+            data = (industry_GVA_primary_intensity_effect %>%
+                filter(measure == "Actual primary energy consumption")),
+            aes(
+                y = value / 1000,
+                x = time,
+                fill = measure
+            ),
+            stat = "identity",
+            alpha = 0.5
+        ) +
+        scale_fill_manual(values = c("Actual primary energy consumption" = "blue4")) +
+        geom_point(
+            data = (industry_GVA_primary_intensity_effect %>%
+                filter(
+                    measure == "Without intensity and transformation effect",
+                    time >= first_year_chart,
+                    time <= last_year_chart
+                )
+            ),
+            aes(
+                y = value / 1000,
+                x = time,
+                color = measure
+            ),
+            size = 3,
+            alpha = 0.5
+        ) +
+        scale_color_manual(values = c("Without intensity and transformation effect" = "green4")) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Primary energy consumption (PJ)") +
+        expand_limits(y = 0) +
+        ggtitle(paste("Actual primary energy consumption in the industry vs theoretical \n(without energy intensity and transformation improvements) for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure12.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_coverage_chart <- function(
+    industry_GVA_primary_complete,
+    year_chart,
+    output_path) {
+    # Data coverage chart
+    p <- industry_GVA_primary_complete %>%
+        filter(
+            sector != "Total",
+            geo != "EU27",
+            time <= year_chart
+        ) %>%
+        select(c("geo", "time", "sector", "primary_energy_consumption", "GVA")) %>%
+        replace(is.na(.), 0) %>%
+        mutate(
+            missing =
+                case_when(
+                    (primary_energy_consumption > 0 & GVA > 0) |
+                        (primary_energy_consumption == 0 & GVA == 0) ~ 0,
+                    TRUE ~ 1
+                )
+        ) %>%
+        select(-c("primary_energy_consumption", "GVA")) %>%
+        group_by(geo, time) %>%
+        summarize(missing = sum(missing)) %>%
+        ggplot(aes(
+            x = reorder(geo, desc(geo)),
+            y = factor(time),
+            fill = missing
+        )) +
+        coord_flip() +
+        geom_tile() +
+        theme_classic() +
+        scale_fill_gradient(
+            low = "white",
+            high = "red",
+            limits = c(0, 13),
+            breaks = scales::pretty_breaks(n = 4)(0:13)
+        ) +
+        theme(
+            axis.title.x = element_blank(),
+            axis.title.y = element_blank()
+        ) +
+        labs(fill = "Missing sub-sectors") +
+        ggtitle("Completeness of coverage (energy and activity data) for European countries across years")
+
+    print_chart(p,
+        filename = "EU27_Figure13D.jpg",
+        output_path = output_path,
+        width = 2400,
+        height = 3200,
+        res = 300
+    )
+}
+
+generate_eu_comparison_chart <- function(
+    energy_EHG_TJ,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
+    # Prepare the data
+    EU_comparison <- energy_EHG_TJ %>%
+        filter(
+            time %in% c(first_year_chart, last_year_chart),
+            geo != "EU27"
+        ) %>%
+        merge(eu_countries, by.x = "geo", by.y = "code") %>%
+        select(-c("geo", "label")) %>%
+        pivot_longer(
+            cols = c("E7000_INPUT", "H8000_INPUT"),
+            names_to = "measure",
+            values_to = "value"
+        )
+
+    # Rank the countries by intensity on last year
+    country_ranked_ELE <- EU_comparison %>%
+        filter(
+            time == last_year_chart,
+            measure == "E7000_INPUT"
+        ) %>%
+        arrange(value) %>%
+        pull(name)
+
+    # Rank the countries by intensity on last year
+    country_ranked_HEAT <- EU_comparison %>%
+        filter(
+            time == last_year_chart,
+            measure == "H8000_INPUT"
+        ) %>%
+        arrange(value) %>%
+        pull(name)
+
+    # Electricity charts
+    electricity_chart <- EU_comparison %>%
+        filter(measure == "E7000_INPUT") %>%
+        ggplot(aes(
+            x = factor(name, levels = country_ranked_ELE),
+            y = value,
+            color = as.factor(time)
+        )) +
+        geom_point() +
+        geom_line(aes(group = name), colour = "grey") +
+        coord_flip() +
+        theme_classic() +
+        theme(
+            axis.title.y = element_blank(),
+            legend.title = element_blank(),
+            legend.position = c(0.8, 0.2),
+            legend.box = "horizontal"
+        ) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Energy input (TJ input / TJ output)") +
+        ggtitle(paste("Energy input for electricity in European countries"))
+
+    # Heat charts
+    heat_chart <- EU_comparison %>%
+        filter(measure == "H8000_INPUT") %>%
+        ggplot(aes(
+            x = factor(name, levels = country_ranked_HEAT),
+            y = value,
+            color = as.factor(time)
+        )) +
+        geom_point() +
+        geom_line(aes(group = name), colour = "grey") +
+        coord_flip() +
+        theme_classic() +
+        theme(
+            axis.title.y = element_blank(),
+            legend.title = element_blank(),
+            legend.position = c(0.8, 0.2),
+            legend.box = "horizontal"
+        ) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Energy input (TJ input / TJ output)") +
+        ggtitle(paste("Energy input for heat in European countries"))
+
+    p <- ggarrange(
+        electricity_chart,
+        heat_chart,
+        ncol = 2,
+        nrow = 1,
+        labels = c("Electricity", "Heat"),
+        label.x = 0.5,
+        align = "hv",
+        common.legend = TRUE,
+        legend = "bottom"
+    )
+
+    print_chart(p,
+        filename = "EU27_Figure13E.jpg",
+        output_path = output_path,
+        width = 2400,
+        height = 3200,
+        res = 300
+    )
 }

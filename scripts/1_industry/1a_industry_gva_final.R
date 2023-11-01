@@ -123,6 +123,7 @@ industry_GVA_final <- function(
             output_path = output_path
         )
 
+        # Simple effect decomposition
         generate_final_effects_charts(
             industry_GVA_final_LMDI,
             country_chart = country_chart,
@@ -1172,7 +1173,6 @@ generate_final_effects_charts <- function(
     first_year_chart,
     last_year_chart,
     output_path) {
-    # Simple effect decomposition
 
     # prepare data for the simple effect chart
     industry_GVA_final_effects <- industry_GVA_final_LMDI %>%
