@@ -1,6 +1,13 @@
 library(fs)
 library(tidyr)
 # FINAL ENERGY CONSUMPTION IN INDUSTRY
+source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/year_selection.R"))
+source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
+source(path(getwd(), "scripts/0_support/mapping_products.R"))
+source(path(getwd(), "scripts/0_support/mapping_colors.R"))
+source(path(getwd(), "scripts/0_support/manual_corrections.R"))
+source(path(getwd(), "scripts/1_industry/1_shared.R"))
 
 # Data preparation
 industry_GVA_final <- function(
@@ -9,13 +16,6 @@ industry_GVA_final <- function(
     country,
     data_path,
     chart_path) {
-    source(path(getwd(), "scripts/0_support/print_charts.R"))
-    source(path(getwd(), "scripts/0_support/year_selection.R"))
-    source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
-    source(path(getwd(), "scripts/0_support/mapping_products.R"))
-    source(path(getwd(), "scripts/0_support/mapping_colors.R"))
-    source(path(getwd(), "scripts/0_support/manual_corrections.R"))
-    source(path(getwd(), "scripts/1_industry/1_shared.R"))
 
     # Define the list as the whole list
     country_list <- geo_codes
@@ -29,15 +29,16 @@ industry_GVA_final <- function(
     load(paste0(data_path, "/nama_10_a64.Rda"))
 
     # Energy consumption by fuel
-    industry_energy_breakdown <- prepare_industry_energy_breakdown(
-        nrg_bal_c,
+    industry_energy_breakdown <- prepare_energy_product_breakdown(
+        # take industry end uses
+        nrg_bal_c %>% filter(nrg_bal %in% NRG_IND_SECTORS) ,
         first_year = first_year,
         last_year = last_year,
         country_list = country_list
-    )
+    ) 
 
     # energy consumption (and supply) from the energy balance (nrg_bal_c)
-    industry_energy_final <- prepare_industry_energy_final(
+    industry_energy_final <- prepare_energy_consumption(
         nrg_bal_c,
         first_year = first_year,
         last_year = last_year,
@@ -45,13 +46,12 @@ industry_GVA_final <- function(
     )
 
     # economic activity from the national account data (nama_10_a64)
-    industry_GVA <- prepare_industry_GVA(
+    industry_GVA <- prepare_activity(
         nama_10_a64,
         first_year = first_year,
         last_year = last_year,
         country_list = country_list
-    ) %>%
-        apply_gva_corrections()
+    )
 
     # Joining datasets
     industry_GVA_final_complete <- full_join(
@@ -59,21 +59,17 @@ industry_GVA_final <- function(
         industry_energy_final,
         by = c("geo", "time", "sector")
     ) %>%
-        prepare_industry_GVA_final_complete()
+    join_energy_consumption_activity()
 
     # filter out sectors with incomplete data
-    industry_GVA_final_filtered <- filter_industry_GVA(industry_GVA_final_complete)
-
-    industry_GVA_final_augmented <- augment_industry_GVA_final(industry_GVA_final_filtered)
-
-    industry_GVA_final_total <- add_total_sector_final(industry_GVA_final_augmented)
-
+    industry_GVA_final_filtered <- filter_energy_consumption_activity(industry_GVA_final_complete)
+    # calculate the required indicators for the 3 effects
+    industry_GVA_final_augmented <- add_share_sectors(industry_GVA_final_filtered)
+    industry_GVA_final_total <- add_total_sectors(industry_GVA_final_augmented)
     # Calculate the indexed and indexed indicators
-
-    # Copy the dataframe to store all the values indexed on the base year
     industry_GVA_final_full <- industry_GVA_final_augmented %>%
         rbind(industry_GVA_final_total) %>%
-        add_index_delta_final()
+        add_index_delta()
 
     # Effects calculation
 
@@ -155,239 +151,42 @@ industry_GVA_final <- function(
     }
 }
 
-prepare_industry_energy_breakdown <- function(
+prepare_energy_consumption <- function(
     nrg_bal_c,
     first_year,
     last_year,
     country_list) {
-    nrg_bal_c %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take industry end uses
-            nrg_bal %in% NRG_IND_SECTORS,
-            # work with total energy consumption, in TJ
-            siec %in% NRG_PRODS,
-            unit == "TJ"
-        ) %>%
-        group_by(geo, time, siec) %>%
-        summarise(values = sum(values, na.rm = TRUE)) %>%
-        ungroup() %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = siec,
-            values_from = values
-        ) %>%
-        # aggregate
-        mutate(
-            # Coal, manufactured gases, peat and peat products
-            CPS = rowSums(select(., all_of(COAL_PRODS)), na.rm = TRUE),
-            # Oil, petroleum products, oil shale and oil sands
-            OS = rowSums(select(., all_of(OIL_PRODS)), na.rm = TRUE),
-            # Biofuels and renewable wastes
-            RW = rowSums(select(., all_of(BIO_PRODS)), na.rm = TRUE),
-            # Non-renewable wastes
-            NRW = rowSums(select(., all_of(OTH_PRODS)), na.rm = TRUE),
-            # Wind, solar, geothermal, etc.
-            MR = rowSums(select(., all_of(OTH_REN)), na.rm = TRUE)
-        ) %>%
-        # keep only relevant columns
-        select(
-            -c(
-                C0110,
-                C0121,
-                C0129,
-                C0210,
-                C0220,
-                C0311,
-                C0312,
-                C0320,
-                C0330,
-                C0340,
-                C0350,
-                C0360,
-                C0371,
-                C0379,
-                P1100,
-                P1200,
-                O4100_TOT,
-                O4200,
-                O4300,
-                O4400X4410,
-                O4500,
-                O4610,
-                O4620,
-                O4630,
-                O4640,
-                O4651,
-                O4652XR5210B,
-                O4669,
-                O4671XR5220B,
-                O4653,
-                O4661XR5230B,
-                O4680,
-                O4691,
-                O4692,
-                O4693,
-                O4694,
-                O4695,
-                O4699,
-                S2000,
-                .data[["R5110-5150_W6000RI"]],
-                R5160,
-                R5210P,
-                R5210B,
-                R5220P,
-                R5220B,
-                R5230P,
-                R5230B,
-                R5290,
-                R5300,
-                W6210,
-                W6100,
-                W6220,
-                RA200,
-                RA300,
-                RA410,
-                RA420,
-                RA500,
-                RA600
-            )
-        ) %>%
-        # rename to explicit names
-        rename(
-            "Coal" = "CPS",
-            "Oil" = "OS",
-            "Gas" = "G3000",
-            "Biofuels and renewable wastes" = "RW",
-            "Non-renewable wastes" = "NRW",
-            "Nuclear" = "N900H",
-            "Hydro" = "RA100",
-            "Wind, solar, geothermal, etc." = "MR",
-            "Heat" = "H8000",
-            "Electricity" = "E7000"
-        ) %>%
-        # reshape to long
-        pivot_longer(
-            cols = -c(geo, time),
-            names_to = "product",
-            values_to = "energy_consumption"
-        ) %>%
-        mutate(product = factor(product, level = IDA_FINAL_PROD)) %>%
-        group_by(geo, time) %>%
-        mutate(share_energy_consumption = energy_consumption / sum(energy_consumption)) %>%
-        ungroup()
+    prepare_industry_energy(
+        nrg_bal_c,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    ) %>%
+    filter(siec == "TOTAL") %>%
+    select(-c(siec)) %>%
+    # reshape to long
+    pivot_longer(
+        cols = -c(geo, time),
+        names_to = "sector",
+        values_to = "energy_consumption"
+    )
 }
 
-prepare_industry_energy_final <- function(
-    nrg_bal_c,
+prepare_activity <- function(
+    nama_10_a64,
     first_year,
     last_year,
-    country_list) {
-    nrg_bal_c %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take industry end uses
-            nrg_bal %in% NRG_IND_SECTORS,
-            # work with total energy consumption, in TJ
-            siec == "TOTAL",
-            unit == "TJ"
+    country_list){
+        prepare_industry_GVA(
+            nama_10_a64,
+            first_year = first_year,
+            last_year = last_year,
+            country_list = country_list
         ) %>%
-        select(c("geo", "time", "nrg_bal", "values")) %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = nrg_bal,
-            values_from = values
-        ) %>%
-        # aggregate
-        mutate(
-            # basic metals
-            FC_MBM = rowSums(
-                select(., c(
-                    "FC_IND_IS_E",
-                    "NRG_CO_E",
-                    "NRG_BF_E",
-                    "FC_IND_NFM_E"
-                )),
-                na.rm = TRUE
-            ),
-            # mining and quarrying
-            FC_MQ = rowSums(
-                select(., c(
-                    "FC_IND_MQ_E",
-                    "NRG_CM_E",
-                    "NRG_OIL_NG_E"
-                )),
-                na.rm = TRUE
-            ),
-            # other manufacturing
-            FC_NSP = rowSums(
-                select(., c(
-                    "NRG_PF_E",
-                    "NRG_BKBPB_E",
-                    "NRG_CL_E",
-                    "NRG_GTL_E",
-                    "NRG_CPP_E",
-                    "NRG_NSP_E",
-                    "FC_IND_NSP_E"
-                )),
-                na.rm = TRUE
-            )
-        ) %>%
-        # keep only relevant columns
-        select(
-            -c(
-                FC_IND_IS_E,
-                NRG_CO_E,
-                NRG_BF_E,
-                FC_IND_NFM_E,
-                FC_IND_MQ_E,
-                NRG_CM_E,
-                NRG_OIL_NG_E,
-                NRG_PF_E,
-                NRG_BKBPB_E,
-                NRG_CL_E,
-                NRG_GTL_E,
-                NRG_CPP_E,
-                NRG_NSP_E,
-                FC_IND_NSP_E
-            )
-        ) %>%
-        # rename to explicit names
-        rename(
-            "Construction" = "FC_IND_CON_E",
-            "Mining and quarrying" = "FC_MQ",
-            # "Food, beverages and tobacco" = "FC_IND_FBT_E",
-            "Food, bev. and tobacco" = "FC_IND_FBT_E",
-            "Textile and leather" = "FC_IND_TL_E",
-            "Wood and wood products" = "FC_IND_WP_E",
-            "Paper, pulp and printing" = "FC_IND_PPP_E",
-            # "Coke and refined petroleum products" = "NRG_PR_E",
-            "Coke and ref. pet. products" = "NRG_PR_E",
-            # "Chemical and petrochemical" = "FC_IND_CPC_E",
-            "Chemical and petrochem." = "FC_IND_CPC_E",
-            "Non-metallic minerals" = "FC_IND_NMM_E",
-            "Basic metals" = "FC_MBM",
-            "Machinery" = "FC_IND_MAC_E",
-            "Transport equipment" = "FC_IND_TE_E",
-            "Other manufacturing" = "FC_NSP"
-        ) %>%
-        # reshape to long
-        pivot_longer(
-            cols = -c(geo, time),
-            names_to = "sector",
-            values_to = "energy_consumption"
-        )
-}
+    apply_gva_corrections()
+    }
 
-prepare_industry_GVA_final_complete <- function(df) {
+join_energy_consumption_activity <- function(df) {
     df %>%
         # correcting for missing GVA / Energy
         mutate(
@@ -422,7 +221,7 @@ prepare_industry_GVA_final_complete <- function(df) {
         )
 }
 
-augment_industry_GVA_final <- function(df) {
+add_share_sectors <- function(df) {
     df %>%
         # For each country and each year
         group_by(geo, time) %>%
@@ -447,7 +246,11 @@ augment_industry_GVA_final <- function(df) {
         ungroup()
 }
 
-add_total_sector_final <- function(df) {
+filter_energy_consumption_activity <- function(df) {
+    filter_industry_GVA(df)
+}
+
+add_total_sectors <- function(df) {
     df %>%
         group_by(geo, time) %>%
         summarize(
@@ -461,14 +264,16 @@ add_total_sector_final <- function(df) {
         mutate(sector = "Total")
 }
 
-add_index_delta_final <- function(df) {
+add_index_delta <- function(df) {
     df %>%
         # calculate intensity again, to include the total intensity
-        mutate(intensity = case_when(
-            (GVA == 0 & energy_consumption > 0) ~ NA_real_,
-            (GVA == 0 & energy_consumption == 0) ~ 0,
-            TRUE ~ energy_consumption / GVA
-        )) %>%
+        mutate(
+            intensity = case_when(
+                (GVA == 0 & energy_consumption > 0) ~ NA_real_,
+                (GVA == 0 & energy_consumption == 0) ~ 0,
+                TRUE ~ energy_consumption / GVA
+                )
+        ) %>%
         pivot_longer(
             cols = -c(geo, time, sector),
             names_to = "measure",
@@ -864,14 +669,14 @@ generate_subsectors_charts <- function(
     first_year_chart,
     last_year_chart,
     output_path) {
-    # full data (after filtering)
-    industry_GVA_final_subsector <-
-        industry_GVA_final_full %>%
-        filter(
-            geo == country_chart,
-            time >= first_year_chart,
-            time <= last_year_chart
-        )
+        # full data (after filtering)
+        industry_GVA_final_subsector <-
+            industry_GVA_final_full %>%
+            filter(
+                geo == country_chart,
+                time >= first_year_chart,
+                time <= last_year_chart
+            )
 
     # Chart indexed variation of total industry
     industry_GVA_final_country_indexed <-
@@ -1173,7 +978,6 @@ generate_final_effects_charts <- function(
     first_year_chart,
     last_year_chart,
     output_path) {
-
     # prepare data for the simple effect chart
     industry_GVA_final_effects <- industry_GVA_final_LMDI %>%
         filter(

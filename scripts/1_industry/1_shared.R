@@ -1,4 +1,127 @@
-
+prepare_energy_product_breakdown <- function(
+    nrg_bal_c,
+    first_year,
+    last_year,
+    country_list) {
+    nrg_bal_c %>%
+        filter(
+            geo %in% country_list,
+            # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year,
+            # work with total energy consumption, in TJ
+            siec %in% NRG_PRODS,
+            unit == "TJ"
+        ) %>%
+        group_by(geo, time, siec) %>%
+        summarise(values = sum(values, na.rm = TRUE)) %>%
+        ungroup() %>%
+        # reshape to wide
+        pivot_wider(
+            names_from = siec,
+            values_from = values
+        ) %>%
+        # aggregate
+        mutate(
+            # Coal, manufactured gases, peat and peat products
+            CPS = rowSums(select(., all_of(COAL_PRODS)), na.rm = TRUE),
+            # Oil, petroleum products, oil shale and oil sands
+            OS = rowSums(select(., all_of(OIL_PRODS)), na.rm = TRUE),
+            # Biofuels and renewable wastes
+            RW = rowSums(select(., all_of(BIO_PRODS)), na.rm = TRUE),
+            # Non-renewable wastes
+            NRW = rowSums(select(., all_of(OTH_PRODS)), na.rm = TRUE),
+            # Wind, solar, geothermal, etc.
+            MR = rowSums(select(., all_of(OTH_REN)), na.rm = TRUE)
+        ) %>%
+        # keep only relevant columns
+        select(
+            -c(
+                C0110,
+                C0121,
+                C0129,
+                C0210,
+                C0220,
+                C0311,
+                C0312,
+                C0320,
+                C0330,
+                C0340,
+                C0350,
+                C0360,
+                C0371,
+                C0379,
+                P1100,
+                P1200,
+                O4100_TOT,
+                O4200,
+                O4300,
+                O4400X4410,
+                O4500,
+                O4610,
+                O4620,
+                O4630,
+                O4640,
+                O4651,
+                O4652XR5210B,
+                O4669,
+                O4671XR5220B,
+                O4653,
+                O4661XR5230B,
+                O4680,
+                O4691,
+                O4692,
+                O4693,
+                O4694,
+                O4695,
+                O4699,
+                S2000,
+                .data[["R5110-5150_W6000RI"]],
+                R5160,
+                R5210P,
+                R5210B,
+                R5220P,
+                R5220B,
+                R5230P,
+                R5230B,
+                R5290,
+                R5300,
+                W6210,
+                W6100,
+                W6220,
+                RA200,
+                RA300,
+                RA410,
+                RA420,
+                RA500,
+                RA600
+            )
+        ) %>%
+        # rename to explicit names
+        rename(
+            "Coal" = "CPS",
+            "Oil" = "OS",
+            "Gas" = "G3000",
+            "Biofuels and renewable wastes" = "RW",
+            "Non-renewable wastes" = "NRW",
+            "Nuclear" = "N900H",
+            "Hydro" = "RA100",
+            "Wind, solar, geothermal, etc." = "MR",
+            "Heat" = "H8000",
+            "Electricity" = "E7000"
+        ) %>%
+        # reshape to long
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "product",
+            values_to = "energy_consumption"
+        ) %>%
+        mutate(product = factor(product, level = IDA_FINAL_PROD)) %>%
+        group_by(geo, time) %>%
+        mutate(share_energy_consumption = energy_consumption / sum(energy_consumption)) %>%
+        ungroup()
+}
 
 prepare_industry_GVA <- function(
     nama_10_a64,
@@ -63,5 +186,105 @@ prepare_industry_GVA <- function(
             cols = -c(geo, time),
             names_to = "sector",
             values_to = "GVA"
+        )
+}
+
+prepare_industry_energy <- function(
+    nrg_bal_c,
+    first_year,
+    last_year,
+    country_list) {
+    nrg_bal_c %>%
+        filter(
+            geo %in% country_list,
+            # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year,
+            # take industry end uses
+            nrg_bal %in% NRG_IND_SECTORS,
+            # work with total energy consumption, in TJ
+            siec %in% c(NRG_PRODS, "TOTAL"),
+            unit == "TJ"
+        ) %>%
+        select(-c(unit)) %>%
+        # reshape to wide
+        pivot_wider(
+            names_from = nrg_bal,
+            values_from = values
+        ) %>%
+        replace(is.na(.), 0) %>%
+        # aggregate
+        mutate(
+            # basic metals
+            FC_MBM = rowSums(
+                select(., c(
+                    "FC_IND_IS_E",
+                    "NRG_CO_E",
+                    "NRG_BF_E",
+                    "FC_IND_NFM_E"
+                )),
+                na.rm = TRUE
+            ),
+            # mining and quarrying
+            FC_MQ = rowSums(
+                select(., c(
+                    "FC_IND_MQ_E",
+                    "NRG_CM_E",
+                    "NRG_OIL_NG_E"
+                )),
+                na.rm = TRUE
+            ),
+            # other manufacturing
+            FC_NSP = rowSums(
+                select(., c(
+                    "NRG_PF_E",
+                    "NRG_BKBPB_E",
+                    "NRG_CL_E",
+                    "NRG_GTL_E",
+                    "NRG_CPP_E",
+                    "NRG_NSP_E",
+                    "FC_IND_NSP_E"
+                )),
+                na.rm = TRUE
+            )
+        ) %>%
+        # keep only relevant columns
+        select(
+            -c(
+                FC_IND_IS_E,
+                NRG_CO_E,
+                NRG_BF_E,
+                FC_IND_NFM_E,
+                FC_IND_MQ_E,
+                NRG_CM_E,
+                NRG_OIL_NG_E,
+                NRG_PF_E,
+                NRG_BKBPB_E,
+                NRG_CL_E,
+                NRG_GTL_E,
+                NRG_CPP_E,
+                NRG_NSP_E,
+                FC_IND_NSP_E
+            )
+        ) %>%
+        # rename to explicit names
+        rename(
+            "Construction" = "FC_IND_CON_E",
+            "Mining and quarrying" = "FC_MQ",
+            # "Food, beverages and tobacco" = "FC_IND_FBT_E",
+            "Food, bev. and tobacco" = "FC_IND_FBT_E",
+            "Textile and leather" = "FC_IND_TL_E",
+            "Wood and wood products" = "FC_IND_WP_E",
+            "Paper, pulp and printing" = "FC_IND_PPP_E",
+            # "Coke and refined petroleum products" = "NRG_PR_E",
+            "Coke and ref. pet. products" = "NRG_PR_E",
+            # "Chemical and petrochemical" = "FC_IND_CPC_E",
+            "Chemical and petrochem." = "FC_IND_CPC_E",
+            "Non-metallic minerals" = "FC_IND_NMM_E",
+            "Basic metals" = "FC_MBM",
+            "Machinery" = "FC_IND_MAC_E",
+            "Transport equipment" = "FC_IND_TE_E",
+            "Other manufacturing" = "FC_NSP"
         )
 }

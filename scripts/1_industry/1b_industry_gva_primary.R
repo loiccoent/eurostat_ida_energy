@@ -1,6 +1,13 @@
 library(fs)
 library(tidyr)
 # PRIMARY ENERGY CONSUMPTION IN INDUSTRY
+source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/year_selection.R"))
+source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
+source(path(getwd(), "scripts/0_support/mapping_products.R"))
+source(path(getwd(), "scripts/0_support/mapping_colors.R"))
+source(path(getwd(), "scripts/0_support/manual_corrections.R"))
+source(path(getwd(), "scripts/1_industry/1_shared.R"))
 
 # Data preparation
 industry_GVA_primary <- function(
@@ -9,13 +16,6 @@ industry_GVA_primary <- function(
     country,
     data_path,
     chart_path) {
-    source(path(getwd(), "scripts/0_support/print_charts.R"))
-    source(path(getwd(), "scripts/0_support/year_selection.R"))
-    source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
-    source(path(getwd(), "scripts/0_support/mapping_products.R"))
-    source(path(getwd(), "scripts/0_support/mapping_colors.R"))
-    source(path(getwd(), "scripts/0_support/manual_corrections.R"))
-    source(path(getwd(), "scripts/1_industry/1_shared.R"))
 
     # Define the list as the whole list
     country_list <- geo_codes
@@ -59,21 +59,21 @@ industry_GVA_primary <- function(
     # prepare energy data
 
     # energy consumption (and supply) from the energy balance (nrg_bal_c)
-    industry_energy_primary <- prepare_industry_energy_primary(
+    industry_energy_primary <- prepare_energy_consumption(
         nrg_bal_c,
+        energy_EHG_TJ,
         first_year = first_year,
         last_year = last_year,
         country_list = country_list
     )
 
     # economic activity from the national account data (nama_10_a64)
-    industry_GVA <- prepare_industry_GVA(
+    industry_GVA <- prepare_activity(
         nama_10_a64,
         first_year = first_year,
         last_year = last_year,
         country_list = country_list
-    ) %>%
-        apply_gva_corrections()
+    )
 
     # Joining datasets
     industry_GVA_primary_complete <- full_join(
@@ -81,21 +81,17 @@ industry_GVA_primary <- function(
         industry_energy_primary,
         by = c("geo", "time", "sector")
     ) %>%
-        prepare_industry_GVA_primary_complete()
+    join_energy_consumption_activity()
 
     # filter out sectors with incomplete data
-    industry_GVA_primary_filtered <- filter_industry_GVA(industry_GVA_primary_complete)
-
-    industry_GVA_primary_augmented <- augment_industry_GVA_primary(industry_GVA_primary_filtered)
-
-    industry_GVA_primary_total <- add_total_sector_primary(industry_GVA_primary_augmented)
-
+    industry_GVA_primary_filtered <- filter_energy_consumption_activity(industry_GVA_primary_complete)
+    # calculate the required indicators for the 3 effects
+    industry_GVA_primary_augmented <- add_share_sectors(industry_GVA_primary_filtered)
+    industry_GVA_primary_total <- add_total_sectors(industry_GVA_primary_augmented)
     # Calculate the indexed and indexed indicators
-
-    # Copy the dataframe to store all the values indexed on the base year
     industry_GVA_primary_full <- industry_GVA_primary_augmented %>%
         rbind(industry_GVA_primary_total) %>%
-        add_index_delta_primary()
+        add_index_delta()
 
     # Effects calculation
 
@@ -136,8 +132,17 @@ industry_GVA_primary <- function(
             output_path = output_path
         )
 
+        generate_ele_jeat_share_primary_charts(
+            ele_heat_share_primary,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
+
         generate_ele_heat_consumption_breakdown_charts(
-            ele_heat_input_breakdown,
+            energy_EHG_TJ,
             country_chart = country_chart,
             country_name = country_name,
             first_year = first_year,
@@ -146,7 +151,7 @@ industry_GVA_primary <- function(
         )
 
         generate_input_ele_heat_production_charts(
-            energy_EHG_TJ,
+            ele_heat_input_breakdown,
             country_chart = country_chart,
             country_name = country_name,
             first_year = first_year,
@@ -469,131 +474,60 @@ prepare_energy_EHG_TJ <- function(
         select(geo, time, E7000_INPUT, H8000_INPUT)
 }
 
-prepare_industry_energy_primary <- function(
+prepare_energy_consumption <- function(
     nrg_bal_c,
+    energy_EHG_TJ,
     first_year,
     last_year,
     country_list) {
-    nrg_bal_c %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take industry end uses
-            nrg_bal %in% NRG_IND_SECTORS,
-            # work with total energy consumption, in TJ
-            siec %in% NRG_PRODS,
-            unit == "TJ"
-        ) %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = nrg_bal,
-            values_from = values
-        ) %>%
-        replace(is.na(.), 0) %>%
-        # aggregate
-        mutate(
-            # basic metals
-            FC_MBM = rowSums(
-                select(., c(
-                    "FC_IND_IS_E",
-                    "NRG_CO_E",
-                    "NRG_BF_E",
-                    "FC_IND_NFM_E"
-                )),
-                na.rm = TRUE
-            ),
-            # mining and quarrying
-            FC_MQ = rowSums(
-                select(., c(
-                    "FC_IND_MQ_E",
-                    "NRG_CM_E",
-                    "NRG_OIL_NG_E"
-                )),
-                na.rm = TRUE
-            ),
-            # other manufacturing
-            FC_NSP = rowSums(
-                select(., c(
-                    "NRG_PF_E",
-                    "NRG_BKBPB_E",
-                    "NRG_CL_E",
-                    "NRG_GTL_E",
-                    "NRG_CPP_E",
-                    "NRG_NSP_E",
-                    "FC_IND_NSP_E"
-                )),
-                na.rm = TRUE
+    prepare_industry_energy(
+        nrg_bal_c,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    ) %>%
+    filter(siec != "TOTAL") %>%
+    # reshape to long
+    pivot_longer(
+        cols = -c(geo, time, siec),
+        names_to = "sector",
+        values_to = "final_energy_consumption"
+    ) %>%
+    merge(energy_EHG_TJ,
+        all = TRUE,
+        by = c("geo", "time")
+    ) %>%
+    mutate(
+        primary_energy_consumption =
+            case_when(
+                siec == "E7000" ~ final_energy_consumption * E7000_INPUT,
+                siec == "H8000" ~ final_energy_consumption * H8000_INPUT,
+                TRUE ~ final_energy_consumption
             )
-        ) %>%
-        # keep only relevant columns
-        select(
-            -c(
-                unit,
-                FC_IND_IS_E,
-                NRG_CO_E,
-                NRG_BF_E,
-                FC_IND_NFM_E,
-                FC_IND_MQ_E,
-                NRG_CM_E,
-                NRG_OIL_NG_E,
-                NRG_PF_E,
-                NRG_BKBPB_E,
-                NRG_CL_E,
-                NRG_GTL_E,
-                NRG_CPP_E,
-                NRG_NSP_E,
-                FC_IND_NSP_E
-            )
-        ) %>%
-        # rename to explicit names
-        rename(
-            "Construction" = "FC_IND_CON_E",
-            "Mining and quarrying" = "FC_MQ",
-            # "Food, beverages and tobacco" = "FC_IND_FBT_E",
-            "Food, bev. and tobacco" = "FC_IND_FBT_E",
-            "Textile and leather" = "FC_IND_TL_E",
-            "Wood and wood products" = "FC_IND_WP_E",
-            "Paper, pulp and printing" = "FC_IND_PPP_E",
-            # "Coke and refined petroleum products" = "NRG_PR_E",
-            "Coke and ref. pet. products" = "NRG_PR_E",
-            # "Chemical and petrochemical" = "FC_IND_CPC_E",
-            "Chemical and petrochem." = "FC_IND_CPC_E",
-            "Non-metallic minerals" = "FC_IND_NMM_E",
-            "Basic metals" = "FC_MBM",
-            "Machinery" = "FC_IND_MAC_E",
-            "Transport equipment" = "FC_IND_TE_E",
-            "Other manufacturing" = "FC_NSP"
-        ) %>%
-        # reshape to long
-        pivot_longer(
-            cols = -c(geo, time, siec),
-            names_to = "sector",
-            values_to = "final_energy_consumption"
-        ) %>%
-        merge(energy_EHG_TJ,
-            all = TRUE,
-            by = c("geo", "time")
-        ) %>%
-        mutate(
-            primary_energy_consumption =
-                case_when(
-                    siec == "E7000" ~ final_energy_consumption * E7000_INPUT,
-                    siec == "H8000" ~ final_energy_consumption * H8000_INPUT,
-                    TRUE ~ final_energy_consumption
-                )
-        ) %>%
-        group_by(geo, time, sector) %>%
-        summarize(
-            final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
-            primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE)
-        ) %>%
-        ungroup()
+    ) %>%
+    group_by(geo, time, sector) %>%
+    summarize(
+        final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
+        primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE)
+    ) %>%
+    ungroup()
 }
 
-prepare_industry_GVA_primary_complete <- function(df) {
+prepare_activity <- function(
+    nama_10_a64,
+    first_year,
+    last_year,
+    country_list){
+        prepare_industry_GVA(
+            nama_10_a64,
+            first_year = first_year,
+            last_year = last_year,
+            country_list = country_list
+        ) %>%
+    apply_gva_corrections()
+    }
+
+join_energy_consumption_activity <- function(df) {
     df %>%
         # correcting for missing GVA / Energy
         mutate(
@@ -633,108 +567,13 @@ prepare_industry_GVA_primary_complete <- function(df) {
             share_primary_energy_consumption = primary_energy_consumption / total_primary_energy_consumption,
             share_GVA = GVA / total_GVA
         )
-
-    # Sectoral efficiency comparison chart
-
-    # Prepare data for the efficiency comparison chart
-    industry_GVA_primary_efficiency_comparison_sector <-
-        industry_GVA_primary_complete %>%
-        mutate(sector = factor(sector, levels = IDA_IND_SECTOR)) %>%
-        select(-c(
-            final_energy_consumption, primary_energy_consumption,
-            total_final_energy_consumption, total_primary_energy_consumption,
-            share_final_energy_consumption, share_primary_energy_consumption,
-            GVA, total_GVA, share_GVA,
-            intensity
-        )) %>%
-        pivot_wider(names_from = geo, values_from = transformation)
-
-    min_EU <-
-        apply(
-            select_if(
-                industry_GVA_primary_efficiency_comparison_sector[, -1],
-                is.numeric
-            ),
-            1,
-            min,
-            na.rm = TRUE
-        )
-    max_EU <-
-        apply(
-            select_if(
-                industry_GVA_primary_efficiency_comparison_sector[, -1],
-                is.numeric
-            ),
-            1,
-            max,
-            na.rm = TRUE
-        )
-    avg_EU <-
-        apply(
-            select_if(
-                industry_GVA_primary_efficiency_comparison_sector[, -1],
-                is.numeric
-            ),
-            1,
-            mean,
-            na.rm = TRUE
-        )
-    year <-
-        as.Date(
-            as.character(industry_GVA_primary_efficiency_comparison_sector$time),
-            "%Y"
-        )
-
-    industry_GVA_primary_efficiency_comparison_sector <-
-        industry_GVA_primary_efficiency_comparison_sector %>%
-        cbind(min_EU) %>%
-        cbind(max_EU) %>%
-        cbind(avg_EU) %>%
-        cbind(year) %>%
-        select(c(sector, year, !!country_chart, min_EU, max_EU)) %>%
-        mutate(year = lubridate::year(year))
-
-    # Plot the efficiency comparison as line chart
-    p <- industry_GVA_primary_efficiency_comparison_sector %>%
-        ggplot(aes(x = year)) +
-        # geom_blank(aes(x = year)) +
-        geom_ribbon(aes(
-            x = year,
-            ymax = max_EU,
-            ymin = min_EU,
-            fill = "grey"
-        )) +
-        geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
-        geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
-        scale_fill_identity(guide = "legend", labels = c("Europe range")) +
-        scale_colour_manual(
-            values = c("black" = "black", "red" = "red"),
-            labels = c("Europe average", country_name)
-        ) +
-        theme_classic() +
-        theme(
-            axis.title.x = element_blank(),
-            legend.title = element_blank(),
-            legend.position = c(0.75, 0.05),
-            legend.box = "horizontal",
-            text = element_text(size = 15)
-        ) +
-        ylab("Primary energy intensity (MJ / EUR") +
-        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-        scale_y_continuous(labels = scales::number) +
-        ggtitle(paste("Energy transformation efficiency in", country_name, "'s manufacturing industry compared to \nother European countries")) +
-        facet_wrap(~sector, scales = "free", ncol = 3)
-
-    print_chart(p,
-        filename = paste0(country_chart, "_Figure13C.jpg"),
-        output_path = output_path,
-        width = 2400,
-        height = 3200,
-        res = 300
-    )
 }
 
-augment_industry_GVA_primary <- function(df) {
+filter_energy_consumption_activity <- function(df) {
+    filter_industry_GVA(df)
+}
+
+add_share_sectors <- function(df) {
     df %>%
         # For each country and each year
         group_by(geo, time) %>%
@@ -763,22 +602,23 @@ augment_industry_GVA_primary <- function(df) {
         ungroup()
 }
 
-add_total_sector_primary <- function(df) {
+add_total_sectors <- function(df) {
+    df %>% 
     group_by(geo, time) %>%
-        summarize(
-            GVA = sum(GVA, na.rm = TRUE),
-            primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
-            final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
-            # the sum of shares should be one, calculated here for checking
-            share_GVA = sum(share_GVA, na.rm = TRUE),
-            share_primary_energy_consumption = sum(share_primary_energy_consumption, na.rm = TRUE),
-            share_final_energy_consumption = sum(share_final_energy_consumption, na.rm = TRUE)
-        ) %>%
-        ungroup() %>%
-        mutate(sector = "Total")
+    summarize(
+        GVA = sum(GVA, na.rm = TRUE),
+        primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
+        final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
+        # the sum of shares should be one, calculated here for checking
+        share_GVA = sum(share_GVA, na.rm = TRUE),
+        share_primary_energy_consumption = sum(share_primary_energy_consumption, na.rm = TRUE),
+        share_final_energy_consumption = sum(share_final_energy_consumption, na.rm = TRUE)
+    ) %>%
+    ungroup() %>%
+    mutate(sector = "Total")
 }
 
-add_index_delta_primary <- function(df) {
+add_index_delta <- function(df) {
     df %>%
         # calculate intensity again, to include the total intensity
         mutate(
@@ -1011,6 +851,110 @@ generate_country_charts <- function(
         height = 2400,
         res = 300
     )
+
+    # Sectoral efficiency comparison chart
+
+    # Prepare data for the efficiency comparison chart
+    industry_GVA_primary_efficiency_comparison_sector <-
+        industry_GVA_primary_complete %>%
+        mutate(sector = factor(sector, levels = IDA_IND_SECTOR)) %>%
+        select(-c(
+            final_energy_consumption, 
+            primary_energy_consumption,
+            total_final_energy_consumption, 
+            total_primary_energy_consumption,
+            share_final_energy_consumption, 
+            share_primary_energy_consumption,
+            GVA, 
+            total_GVA, 
+            share_GVA,
+            intensity
+        )) %>%
+        pivot_wider(names_from = geo, values_from = transformation)
+
+    min_EU <-
+        apply(
+            select_if(
+                industry_GVA_primary_efficiency_comparison_sector[, -1],
+                is.numeric
+            ),
+            1,
+            min,
+            na.rm = TRUE
+        )
+    max_EU <-
+        apply(
+            select_if(
+                industry_GVA_primary_efficiency_comparison_sector[, -1],
+                is.numeric
+            ),
+            1,
+            max,
+            na.rm = TRUE
+        )
+    avg_EU <-
+        apply(
+            select_if(
+                industry_GVA_primary_efficiency_comparison_sector[, -1],
+                is.numeric
+            ),
+            1,
+            mean,
+            na.rm = TRUE
+        )
+    year <-
+        as.Date(
+            as.character(industry_GVA_primary_efficiency_comparison_sector$time),
+            "%Y"
+        )
+
+    industry_GVA_primary_efficiency_comparison_sector <-
+        industry_GVA_primary_efficiency_comparison_sector %>%
+        cbind(min_EU) %>%
+        cbind(max_EU) %>%
+        cbind(avg_EU) %>%
+        cbind(year) %>%
+        select(c(sector, year, !!country_chart, min_EU, max_EU)) %>%
+        mutate(year = lubridate::year(year))
+
+    # Plot the efficiency comparison as line chart
+    p <- industry_GVA_primary_efficiency_comparison_sector %>%
+        ggplot(aes(x = year)) +
+        # geom_blank(aes(x = year)) +
+        geom_ribbon(aes(
+            x = year,
+            ymax = max_EU,
+            ymin = min_EU,
+            fill = "grey"
+        )) +
+        geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
+        geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
+        scale_fill_identity(guide = "legend", labels = c("Europe range")) +
+        scale_colour_manual(
+            values = c("black" = "black", "red" = "red"),
+            labels = c("Europe average", country_name)
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = c(0.75, 0.05),
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        ylab("Primary energy intensity (MJ / EUR") +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ggtitle(paste("Energy transformation efficiency in", country_name, "'s manufacturing industry compared to \nother European countries")) +
+        facet_wrap(~sector, scales = "free", ncol = 3)
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure13C.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 3200,
+        res = 300
+    )
 }
 
 generate_subsectors_charts <- function(
@@ -1209,7 +1153,24 @@ generate_subsectors_charts <- function(
     )
 }
 
-generate_ele_heat_consumption_breakdown_charts <- function(
+generate_ele_jeat_share_primary_charts <- function(
+    ele_heat_share_primary,
+    country_chart,
+    country_name,
+    first_year,
+    last_year,
+    output_path
+){
+    # Table used to provide figures in the text of the report
+    table_ele_heat_share_primary_filtered <- ele_heat_share_primary %>%
+        filter(geo == country_chart) %>%
+        mutate(share_EHG = round(share_EHG, 3))
+
+    write.csv(table_ele_heat_share_primary_filtered, paste0(output_path, "Part2_share.csv"), row.names = FALSE)
+
+}
+
+generate_input_ele_heat_production_charts <- function(
     ele_heat_input_breakdown,
     country_chart,
     country_name,
@@ -1222,14 +1183,7 @@ generate_ele_heat_consumption_breakdown_charts <- function(
             geo == country_chart,
             !energy_input == 0
         )
-
-    # Table used to provide figures in the text of the report
-    table_ele_heat_share_primary_filtered <- ele_heat_share_primary %>%
-        filter(geo == country_chart) %>%
-        mutate(share_EHG = round(share_EHG, 3))
-
-    write.csv(table_ele_heat_share_primary_filtered, paste0(output_path, "Part2_share.csv"), row.names = FALSE)
-
+        
     table_ele_heat_input_breakdown_filtered <- ele_heat_input_breakdown_filtered %>%
         mutate(
             energy_input = round(energy_input, 1),
@@ -1309,7 +1263,7 @@ generate_ele_heat_consumption_breakdown_charts <- function(
 }
 
 generate_ele_heat_consumption_breakdown_charts <- function(
-    ele_heat_input_breakdown,
+    energy_EHG_TJ,
     country_chart,
     country_name,
     first_year,
@@ -1426,7 +1380,7 @@ generate_ele_heat_consumption_breakdown_charts <- function(
     )
 }
 
-generate_final_effects_charts <- function(
+generate_primary_effects_charts <- function(
     industry_GVA_primary_LMDI,
     country_chart,
     country_name,
