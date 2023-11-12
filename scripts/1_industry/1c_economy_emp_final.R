@@ -58,7 +58,7 @@ economy_emp_final <- function(
         economy_employment,
         by = c("geo", "time", "sector")
     ) %>%
-        join_energy_consumption_activity()
+    join_energy_consumption_activity()
 
 
     # filter out sectors with incomplete data
