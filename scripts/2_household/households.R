@@ -1,21 +1,22 @@
 library(fs)
 library(tidyr)
 # ENERGY CONSUMPTION IN RESIDENTIAL SECTOR
+source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/year_selection.R"))
+source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
+source(path(getwd(), "scripts/0_support/mapping_products.R"))
+source(path(getwd(), "scripts/0_support/mapping_colors.R"))
+source(path(getwd(), "scripts/0_support/manual_corrections.R"))
+source(path(getwd(), "scripts/4_all_sectors/shared.R"))
 
 # Data preparation
-household_final <- function(first_year,
-                            last_year,
-                            country,
-                            data_path,
-                            chart_path) {
-    source(path(getwd(), "scripts/0_support/print_charts.R"))
-    source(path(getwd(), "scripts/0_support/year_selection.R"))
-    source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
-    source(path(getwd(), "scripts/0_support/mapping_products.R"))
-    source(path(getwd(), "scripts/0_support/mapping_colors.R"))
-    source(path(getwd(), "scripts/0_support/manual_corrections.R"))
-    
-	# Define the list as the whole list
+household_final <- function(
+    first_year,
+    last_year,
+    country,
+    data_path,
+    chart_path) {
+    # Define the list as the whole list
     country_list <- geo_codes
 
     # DATA PREPARATION
@@ -36,127 +37,142 @@ household_final <- function(first_year,
     load(paste0(data_path, "/ilc_lvph01.Rda"))
 
     # Energy consumption by fuel
-    HH_energy_breakdown <- nrg_bal_c %>%
-        filter(
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take industry end uses
-            nrg_bal == "FC_OTH_HH_E",
-            # work with total energy consumption, in TJ
-            siec %in% NRG_PRODS,
-            unit == "TJ"
-        ) %>%
-        group_by(geo, time, siec) %>%
-        summarise(values = sum(values, na.rm = TRUE)) %>%
-        ungroup() %>%
-        # reshape to wide
-        pivot_wider(
-            names_from = siec,
-            values_from = values
-        ) %>%
-        # aggregate
-        mutate(
-            # Coal, manufactured gases, peat and peat products
-            CPS = rowSums(select(., all_of(COAL_PRODS)), na.rm = TRUE),
-            # Oil, petroleum products, oil shale and oil sands
-            OS = rowSums(select(., all_of(OIL_PRODS)), na.rm = TRUE),
-            # Biofuels and renewable wastes
-            RW = rowSums(select(., all_of(BIO_PRODS)), na.rm = TRUE),
-            # Non-renewable wastes
-            NRW = rowSums(select(., all_of(OTH_PRODS)), na.rm = TRUE),
-            # Wind, solar, geothermal, etc.
-            MR = rowSums(select(., all_of(OTH_REN)), na.rm = TRUE)
-        ) %>%
-        # keep only relevant columns
-        select(
-            -c(
-                C0110,
-                C0121,
-                C0129,
-                C0210,
-                C0220,
-                C0311,
-                C0312,
-                C0320,
-                C0330,
-                C0340,
-                C0350,
-                C0360,
-                C0371,
-                C0379,
-                P1100,
-                P1200,
-                O4100_TOT,
-                O4200,
-                O4300,
-                O4400X4410,
-                O4500,
-                O4610,
-                O4620,
-                O4630,
-                O4640,
-                O4651,
-                O4652XR5210B, # nolint
-                O4669,
-                O4671XR5220B,
-                O4653,
-                O4661XR5230B,
-                O4680,
-                O4691,
-                O4692,
-                O4693,
-                O4694,
-                O4695,
-                O4699,
-                S2000,
-                .data[["R5110-5150_W6000RI"]],
-                R5160,
-                R5210P,
-                R5210B,
-                R5220P,
-                R5220B,
-                R5230P,
-                R5230B,
-                R5290,
-                R5300,
-                W6210,
-                W6100,
-                W6220,
-                RA200,
-                RA300,
-                RA410,
-                RA420,
-                RA500,
-                RA600
-            )
-        ) %>%
-        # rename to explicit names
-        rename(
-            "Coal" = "CPS",
-            "Oil" = "OS",
-            "Gas" = "G3000",
-            "Biofuels and renewable wastes" = "RW",
-            "Non-renewable wastes" = "NRW",
-            "Nuclear" = "N900H",
-            "Hydro" = "RA100",
-            "Wind, solar, geothermal, etc." = "MR",
-            "Heat" = "H8000",
-            "Electricity" = "E7000"
-        ) %>%
-        # reshape to long
-        pivot_longer(
-            cols = -c(geo, time),
-            names_to = "product",
-            values_to = "energy_consumption"
-        ) %>%
-        mutate(product = factor(product, level = IDA_FINAL_PROD)) %>%
-        group_by(geo, time) %>%
-        mutate(share_energy_consumption = energy_consumption / sum(energy_consumption)) %>%
-        ungroup()
+    HH_energy_breakdown <- prepare_energy_product_breakdown(
+        # take economy sectors end uses
+        nrg_bal_c %>% filter(nrg_bal == "FC_OTH_HH_E"),
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    )
 
+    # energy consumption from the energy balance (nrg_bal_c)
+    # and disaggregated energy balance (nrg_d_hhq)
+    HH_energy_consumption <- prepare_energy_consumption(
+        nrg_bal_c,
+        nrg_d_hhq,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    )
+
+    # Prepare household activity
+    HH_activity <- prepare_activity(
+        demo_gind,
+        ilc_lvph01,
+        nrg_chdd_a,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    )
+
+    # joining datasets
+    HH <- full_join(
+        HH_energy_consumption,
+        HH_activity,
+        by = c("geo", "time")
+    )
+
+    HH_augmented <- join_energy_consumption_activity(HH)
+
+    # calculate the indexed and differenced indicators
+    HH_full <- add_index_delta(HH_augmented)
+
+    # Effects calculation
+
+    # Calculate the effects using the LMDI formulas
+    HH_LMDI <- apply_LMDI(HH_full)
+
+    ### CHARTS ###
+
+    if (country == "all") {
+        countries <- geo_codes
+    } else {
+        countries <- country
+    }
+
+    for (country_chart in countries) {
+        # Long name for the country
+        country_name <- ifelse(country_chart == "EU27", "EU27", filter(eu27, code == country_chart)$name)
+        # Output charts
+        output_path <- paste0(chart_path, "/", country_chart, "/")
+        # first and last year shown in charts
+        first_year_chart <- household_base_year(country = country_chart, first_year = first_year)
+        last_year_chart <- household_last_year(country = country_chart, final_year = last_year)
+
+
+        generate_country_charts(
+            HH,
+            year_chart = year_chart,
+            country_name = country_name,
+            country_chart = country_chart,
+            output_path = output_path
+        )
+
+        generate_household_energy_charts(
+            HH_augmented,
+            country_name = country_name,
+            country_chart = country_chart,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
+
+        generate_subsectors_charts(
+            HH_full,
+            country_name = country_name,
+            country_chart = country_chart,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+        )
+
+        generate_energy_breakdown_charts(
+            HH_energy_breakdown,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
+
+        # Simple effect decomposition
+        generate_final_effects_charts(
+            HH_LMDI,
+            country_chart = country_chart,
+            country_name = country_name,
+            year_chart = year_chart,
+            first_year = first_year,
+            last_year = last_year,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+        )
+    }
+
+    if (country == "EU27") {
+        output_path <- paste0(chart_path, "/EU27/")
+
+        generate_coverage_chart(
+            HH_augmented,
+            year_chart = year_chart,
+            output_path = output_path
+        )
+
+        generate_eu_comparison_chart(
+            HH_augmented,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+        )
+    }
+}
+
+prepare_energy_consumption <- function(
+    nrg_bal_c,
+    nrg_d_hhq,
+    first_year,
+    last_year,
+    country_list) {
     # energy consumption (and supply) from the energy balance (nrg_bal_c)
     energy_HH_aggregated <- nrg_bal_c %>%
         filter(
@@ -202,52 +218,6 @@ household_final <- function(first_year,
             light_appliances = FC_OTH_HH_E_LE,
             other = FC_OTH_HH_E_OE
         )
-
-    # prepare population data
-    pop <- demo_gind %>%
-        filter( # take only EU countries
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year,
-            # take total population
-            indic_de == "AVG"
-        ) %>%
-        # keep only relevant columns
-        select(-indic_de) %>%
-        rename(total_pop = values)
-
-    # prepare household data
-    size_HH <- ilc_lvph01 %>%
-        filter( # take only EU countries
-            geo %in% country_list,
-            # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year
-        ) %>%
-        # keep only relevant columns
-        select(-unit) %>%
-        rename(HH_size = values)
-
-    # prepare cooling and heating data
-    CHDD <- nrg_chdd_a %>%
-        filter( # take only EU countries
-            geo %in% country_list
-        ) %>%
-        pivot_wider(names_from = indic_nrg, values_from = values) %>%
-        group_by(geo) %>%
-        mutate(
-            CDD_norm = CDD / mean(CDD),
-            HDD_norm = HDD / mean(HDD)
-        ) %>%
-        filter( # from first year
-            time >= first_year,
-            # to last year
-            time <= last_year
-        ) %>%
-        select(-unit)
 
     # Prepare data
     energy_HH_aggregated$total_bal <-
@@ -299,6 +269,68 @@ household_final <- function(first_year,
             which(energy_HH_disaggregated$water_heating <= 0),
             NA
         )
+
+    # joining datasets
+
+    HH_energy_consumption <- energy_HH_aggregated %>%
+        full_join(energy_HH_disaggregated, by = c("geo", "time"))
+
+    HH_energy_consumption
+}
+
+prepare_activity <- function(
+    demo_gind,
+    ilc_lvph01,
+    nrg_chdd_a,
+    first_year,
+    last_year,
+    country_list) {
+    # prepare population data
+    pop <- demo_gind %>%
+        filter( # take only EU countries
+            geo %in% country_list,
+            # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year,
+            # take total population
+            indic_de == "AVG"
+        ) %>%
+        # keep only relevant columns
+        select(-indic_de) %>%
+        rename(total_pop = values)
+
+    # prepare household data
+    size_HH <- ilc_lvph01 %>%
+        filter( # take only EU countries
+            geo %in% country_list,
+            # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year
+        ) %>%
+        # keep only relevant columns
+        select(-unit) %>%
+        rename(HH_size = values)
+
+    # prepare cooling and heating data
+    CHDD <- nrg_chdd_a %>%
+        filter( # take only EU countries
+            geo %in% country_list
+        ) %>%
+        pivot_wider(names_from = indic_nrg, values_from = values) %>%
+        group_by(geo) %>%
+        mutate(
+            CDD_norm = CDD / mean(CDD),
+            HDD_norm = HDD / mean(HDD)
+        ) %>%
+        filter( # from first year
+            time >= first_year,
+            # to last year
+            time <= last_year
+        ) %>%
+        select(-unit)
+
     pop$total_pop <-
         replace(
             pop$total_pop,
@@ -324,18 +356,18 @@ household_final <- function(first_year,
             NA
         )
 
-    # joining datasets
-
-    HH <- energy_HH_aggregated %>%
-        full_join(energy_HH_disaggregated, by = c("geo", "time")) %>%
-        full_join(pop, by = c("geo", "time")) %>%
+    HH_activity <- pop %>%
         full_join(size_HH, by = c("geo", "time")) %>%
         full_join(CHDD, by = c("geo", "time"))
 
+    HH_activity
+}
+
+join_energy_consumption_activity <- function(df) {
     # indicators calculations
 
     # Include corrections and additional information
-    HH_augmented <- HH %>%
+    df %>%
         mutate(
             # Calculate the number of occupied dwellings based on average occupancy and total population
             occupied_dwellings = total_pop / HH_size,
@@ -398,9 +430,10 @@ household_final <- function(first_year,
         ) %>%
         arrange(time) %>%
         mutate(time = as.integer(time))
+}
 
-    # calculate the indexed and differenced indicators
-    HH_full <- HH_augmented %>%
+add_index_delta <- function(df) {
+    df %>%
         group_by(geo, measure) %>%
         mutate(
             value_indexed = value / value[time == household_base_year(country = .data[["geo"]], first_year = first_year)],
@@ -408,11 +441,10 @@ household_final <- function(first_year,
             time = as.integer(time)
         ) %>%
         ungroup()
+}
 
-    # Effects calculation
-
-    # Calculate the effects using the LMDI formulas
-    HH_LMDI <- HH_full %>%
+apply_LMDI <- function(df) {
+    df %>%
         # Reshape to wide (moving all measures calculated in Value, index and delta, all in separate columns)
         pivot_wider(
             names_from = measure,
@@ -484,984 +516,1014 @@ household_final <- function(first_year,
                 "household_consumption"
             )
         ), na.rm = TRUE))
+}
 
-    ### CHARTS ###
+generate_subsectors_charts <- function(
+    HH_full,
+    country_chart,
+    country_name,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
+    # chart indexed variation of residential
 
-    if (country == "all") {
-        countries <- geo_codes
-    } else {
-        countries <- country
-    }
-
-    for (country_chart in countries) {
-        # Long name for the country
-        country_name <- ifelse(country_chart == "EU27", "EU27", filter(eu27, code == country_chart)$name)
-        # Output charts
-        output_path <- paste0(chart_path, "/", country_chart, "/")
-        # first and last year shown in charts
-        first_year_chart <- household_base_year(country = country_chart, first_year = first_year)
-        last_year_chart <- household_last_year(country = country_chart, final_year = last_year)
-
-        # chart indexed variation of residential
-
-        residential_data <- HH_full %>%
-            filter(
-                geo == country_chart,
-                time <= last_year_chart,
-                measure %in% c(
-                    "total_pop",
-                    "dwelling_per_cap",
-                    "energy_per_dwelling",
-                    "temperature_correction",
-                    "total_res"
-                )
-            ) %>%
-            select(-c(value_delta, value)) %>%
-            pivot_wider(names_from = measure, values_from = value_indexed) %>%
-            rename(
-                "Population" = "total_pop",
-                "Dwelling per capita" = "dwelling_per_cap",
-                "Energy per dwelling" = "energy_per_dwelling",
-                "Weather" = "temperature_correction",
-                "Energy consumption" = "total_res"
+    residential_data <- HH_full %>%
+        filter(
+            geo == country_chart,
+            time <= last_year_chart,
+            measure %in% c(
+                "total_pop",
+                "dwelling_per_cap",
+                "energy_per_dwelling",
+                "temperature_correction",
+                "total_res"
             )
-
-        year <- as.Date(as.character(residential_data$time), "%Y")
-
-        p <- residential_data %>%
-            cbind(year) %>%
-            select(-time) %>%
-            pivot_longer(
-                cols = -c(geo, year),
-                names_to = "measure",
-                values_to = "value"
-            ) %>%
-            ggplot() +
-            geom_blank(aes(x = year)) +
-            geom_line(aes(x = year, y = value, color = measure), size = 1) +
-            scale_color_manual(values = HouseholdColorsIndex) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab(paste("Index (", household_base_year(country = country_chart, first_year = first_year), "=1)")) +
-        	ggtitle(paste("Indexed indicators for",country_name,"'s total residential energy consumption, \ntemperature correction, population, dwelling per capita and energy per dwelling variation, \nall years related to",as.character(first_year)))
-
-		print_chart(p,
-			filename = paste0(country_chart, "_Figure22B.jpg"),
-			output_path = output_path,
-			width = 2400,
-			height = 2400,
-			res = 300
-		)
-
-        # chart indexed variation by end use
-
-        subsector_data <- HH_full %>%
-            filter(
-                geo == country_chart,
-                measure %in% c(
-                    "space_heating",
-                    "space_cooling",
-                    "water_heating",
-                    "cooking",
-                    "light_appliances",
-                    "other"
-                ),
-                time >= first_year_chart,
-                time <= last_year_chart,
-            ) %>%
-            select(-c(value_delta, value)) %>%
-            pivot_wider(names_from = measure, values_from = value_indexed) %>%
-            rename(
-                "Space heating" = "space_heating",
-                "Space cooling" = "space_cooling",
-                "Water heating" = "water_heating",
-                "Cooking" = "cooking",
-                "Lighting and appliances" = "light_appliances",
-                "Other" = "other"
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "end_use",
-                values_to = "value"
-            ) %>%
-            mutate(end_use = factor(end_use, levels = end_use_list))
-
-        year <- as.Date(as.character(subsector_data$time), "%Y")
-
-        p <- subsector_data %>%
-            cbind(year) %>%
-            select(-time) %>%
-            ggplot() +
-            geom_blank(aes(x = year)) +
-            geom_line(aes(x = year, y = value, color = end_use), size = 1) +
-            scale_color_manual(values = EndUseColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab(paste("Index (", household_base_year(country = country_chart, first_year = first_year), "=1)")) +
-        	ggtitle(paste("Indexed variation for",country_name,"'s energy consumption by end use \nin the residential sectors, all years related to",as.character(first_year)))
-
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure22C.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
+        ) %>%
+        select(-c(value_delta, value)) %>%
+        pivot_wider(names_from = measure, values_from = value_indexed) %>%
+        rename(
+            "Population" = "total_pop",
+            "Dwelling per capita" = "dwelling_per_cap",
+            "Energy per dwelling" = "energy_per_dwelling",
+            "Weather" = "temperature_correction",
+            "Energy consumption" = "total_res"
         )
 
-        # Breakdown of energy consumption by fuel
+    year <- as.Date(as.character(residential_data$time), "%Y")
 
-        HH_energy_breakdown_filtered <- HH_energy_breakdown %>%
-            filter(geo == country_chart, !energy_consumption == 0)
-
-        # Table used to provide figures in the text of the report
-        table_HH_energy_breakdown_filtered <-
-            HH_energy_breakdown_filtered %>%
-            mutate(
-                energy_consumption = round(energy_consumption, 2),
-                share_energy_consumption = round(share_energy_consumption, 3)
-            )
-
-        write.csv(
-            table_HH_energy_breakdown_filtered,
-            paste0(output_path, "Part4_fuel.csv"),
-            row.names = FALSE
-        )
-
-        year <-
-            as.Date(
-                as.character(HH_energy_breakdown_filtered$time),
-                "%Y"
-            )
-
-        p <- HH_energy_breakdown_filtered %>%
-            cbind(year) %>%
-            select(-time) %>%
-            mutate(year = lubridate::year(year)) %>%
-            ggplot(aes(x = year, y = energy_consumption / 1000)) +
-            geom_bar(aes(fill = product), stat = "identity") +
-            scale_fill_manual(values = FinalProductsColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_x_continuous(breaks = c(first_year, round((
-                first_year + last_year
-            ) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab(paste("Energy consumption (PJ)")) +
-        	ggtitle(paste("Economy energy consumption by fuel for",country_name))
-
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure20.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        p <- HH_energy_breakdown_filtered %>%
-            filter(time %in% c(first_year_chart, last_year_chart)) %>%
-            ggplot(aes(
-                x = factor(time),
-                y = share_energy_consumption,
-                fill = product
-            )) +
-            geom_bar(position = "fill", stat = "identity") +
-            scale_fill_manual(values = FinalProductsColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::percent) +
-            geom_text(
-                aes(label = paste0(
-                    round(share_energy_consumption * 100, 0), "%"
-                )),
-                position = position_stack(vjust = 0.5)
-            ) +
-            ylab(paste("Share in final energy consumption")) + 
-        	ggtitle(paste("Economy energy consumption by fuel for",country_name))
-
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure20B.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # energy consumption by end-use
-
-        HH_filtered_data <- HH %>%
-            filter(geo == country_chart) %>%
-            rename(
-                "Space heating" = "space_heating",
-                "Space cooling" = "space_cooling",
-                "Water heating" = "water_heating",
-                "Cooking" = "cooking",
-                "Lighting and appliances" = "light_appliances",
-                "Other" = "other"
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "end_use",
-                values_to = "value"
-            ) %>%
-            filter(
-                end_use %in% c(
-                    "Space heating",
-                    "Space cooling",
-                    "Water heating",
-                    "Cooking",
-                    "Lighting and appliances",
-                    "Other"
-                ), !value == 0
-            ) %>%
-            mutate(end_use = factor(end_use, levels = end_use_list))
-
-        HH_totals <- HH %>%
-            filter(geo == country_chart) %>%
-            rename("Total reported" = "total_bal") %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "end_use",
-                values_to = "value"
-            ) %>%
-            filter(end_use == "Total reported")
-
-        year <- as.Date(as.character(HH_filtered_data$time), "%Y")
-        year2 <- as.Date(as.character(HH_totals$time), "%Y")
-
-        p <- HH_filtered_data %>%
-            cbind(year) %>%
-            select(-time) %>%
-            mutate(year = lubridate::year(year)) %>%
-            ggplot(aes(x = year, y = value / 1000)) +
-            geom_bar(aes(fill = end_use), stat = "identity") +
-            scale_fill_manual(values = EndUseColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::number) +
-            scale_x_continuous(breaks = c(first_year, round((
-                first_year + last_year
-            ) / 2), last_year)) +
-            ylab(paste("Energy consumption (PJ)")) +
-            geom_point(
-                data = HH_totals %>%
-                    mutate(year2 = lubridate::year(year2)),
-                aes(
-                    x = year2,
-                    y = value / 1000,
-                    color = end_use
-                ),
-                size = 3
-            ) +
-            scale_color_manual(name = "", values = "black") + 
-        	ggtitle(paste("Residential energy consumption by end-use"))
-
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure21.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # 2 years share
-
-        p <- HH_filtered_data %>%
-            filter(
-                time %in% c(first_year, last_year),
-                geo == country_chart
-            ) %>%
-            mutate(end_use = factor(end_use, levels = end_use_list)) %>%
-            group_by(geo, time) %>%
-            mutate(value = value / sum(value, na.rm = TRUE)) %>%
-            ungroup() %>%
-            ggplot(aes(
-                x = factor(time),
-                y = value,
-                fill = end_use
-            )) +
-            geom_bar(position = "fill", stat = "identity") +
-            scale_fill_manual(values = EndUseColors, limits = force) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_y_continuous(labels = scales::percent) +
-            geom_text(aes(label = paste0(round(value * 100, 0), "%")),
-                position = position_stack(vjust = 0.5)
-            ) +
-            ylab(paste("Share of energy consumption")) +
-        	ggtitle(paste("Economy energy consumption by subsector for",country_name))
-
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure21B.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # Simple effect decomposition
-
-        # Table used to provide figures in the text of the report
-        table_HH_augmented <- HH_augmented %>%
-            filter(geo == country_chart) %>%
-            mutate(value = round(value, 1)) %>%
-            pivot_wider(names_from = measure, values_from = value)
-
-
-        write.csv(table_HH_augmented,
-            paste0(output_path, "Part4_enduse.csv"),
-            row.names = FALSE
-        )
-
-        # prepare data for the simple effect chart
-        effects_df <- HH_LMDI %>%
-            filter(
-                geo == country_chart,
-                time <= last_year_chart,
-                time >= first_year_chart
-            ) %>%
-            rename(
-                "Population" = "population",
-                "Dwelling per capita" = "household_size",
-                "Energy per dwelling" = "household_consumption",
-                "Weather" = "weather"
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "Effect",
-                values_to = "value"
-            ) %>%
-            filter(
-                Effect %in% c(
-                    "Population",
-                    "Dwelling per capita",
-                    "Energy per dwelling",
-                    "Weather"
-                )
-            )
-
-        results_df <- HH_LMDI %>%
-            filter(
-                geo == country_chart,
-                time <= last_year_chart,
-                time >= first_year_chart
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "measure",
-                values_to = "value"
-            ) %>%
-            filter(measure == "value_delta_total_res")
-
-        # Plot the simple effect as bar chart
-        p <- ggplot(
-            data = effects_df,
-            aes(
-                x = factor(time),
-                y = value / 1000
-            )
+    p <- residential_data %>%
+        cbind(year) %>%
+        select(-time) %>%
+        pivot_longer(
+            cols = -c(geo, year),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        ggplot() +
+        geom_blank(aes(x = year)) +
+        geom_line(aes(x = year, y = value, color = measure), size = 1) +
+        scale_color_manual(values = HouseholdColorsIndex) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
         ) +
-            geom_bar(aes(fill = Effect),
-                stat = "identity"
-            ) +
-            scale_fill_manual(values = HouseholdColorsEffect) +
-            geom_point(
-                data = results_df,
-                aes(y = value / 1000),
-                size = 3
-            ) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                text = element_text(size = 15)
-            ) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Energy consumption variation (PJ)") + 
-        	ggtitle(paste("Decompostion analysis of",country_name,"'s residential energy consumption variation, \n  all years related to",as.character(first_year)))
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab(paste("Index (", household_base_year(country = country_chart, first_year = first_year), "=1)")) +
+        ggtitle(paste("Indexed indicators for", country_name, "'s total residential energy consumption, \ntemperature correction, population, dwelling per capita and energy per dwelling variation, \nall years related to", as.character(first_year)))
 
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure22D.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 1600,
-            res = 300
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure22B.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+    # chart indexed variation by end use
+
+    subsector_data <- HH_full %>%
+        filter(
+            geo == country_chart,
+            measure %in% c(
+                "space_heating",
+                "space_cooling",
+                "water_heating",
+                "cooking",
+                "light_appliances",
+                "other"
+            ),
+            time >= first_year_chart,
+            time <= last_year_chart,
+        ) %>%
+        select(-c(value_delta, value)) %>%
+        pivot_wider(names_from = measure, values_from = value_indexed) %>%
+        rename(
+            "Space heating" = "space_heating",
+            "Space cooling" = "space_cooling",
+            "Water heating" = "water_heating",
+            "Cooking" = "cooking",
+            "Lighting and appliances" = "light_appliances",
+            "Other" = "other"
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "end_use",
+            values_to = "value"
+        ) %>%
+        mutate(end_use = factor(end_use, levels = end_use_list))
+
+    year <- as.Date(as.character(subsector_data$time), "%Y")
+
+    p <- subsector_data %>%
+        cbind(year) %>%
+        select(-time) %>%
+        ggplot() +
+        geom_blank(aes(x = year)) +
+        geom_line(aes(x = year, y = value, color = end_use), size = 1) +
+        scale_color_manual(values = EndUseColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab(paste("Index (", household_base_year(country = country_chart, first_year = first_year), "=1)")) +
+        ggtitle(paste("Indexed variation for", country_name, "'s energy consumption by end use \nin the residential sectors, all years related to", as.character(first_year)))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure22C.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+}
+
+generate_household_energy_charts <- function(
+    HH_augmented,
+    country_chart,
+    country_name,
+    first_year,
+    last_year,
+    output_path) {
+    # Table used to provide figures in the text of the report
+    table_HH_augmented <- HH_augmented %>%
+        filter(geo == country_chart) %>%
+        mutate(value = round(value, 1)) %>%
+        pivot_wider(names_from = measure, values_from = value)
+
+
+    write.csv(table_HH_augmented,
+        paste0(output_path, "Part4_enduse.csv"),
+        row.names = FALSE
+    )
+
+    # heating degree day chart
+
+    write.csv(
+        HH_augmented %>%
+            filter(
+                measure %in% c("HDD", "CDD", "HH_size"),
+                geo == country_chart
+            ),
+        paste0(output_path, "Part4_HDD_CDD_HH.csv"),
+        row.names = FALSE
+    )
+
+    # Plot the heating degree day comparison as line chart
+    HDD_CDD_size_comparison_data <- HH_augmented %>%
+        filter(measure %in% c("HDD", "CDD", "HH_size")) %>%
+        pivot_wider(names_from = geo, values_from = value)
+
+    min_EU <-
+        apply(select_if(HDD_CDD_size_comparison_data[, -1], is.numeric),
+            1,
+            min,
+            na.rm = TRUE
+        )
+    max_EU <-
+        apply(select_if(HDD_CDD_size_comparison_data[, -1], is.numeric),
+            1,
+            max,
+            na.rm = TRUE
+        )
+    avg_EU <-
+        apply(select_if(HDD_CDD_size_comparison_data[, -1], is.numeric),
+            1,
+            mean,
+            na.rm = TRUE
+        )
+    year <-
+        as.Date(as.character(HDD_CDD_size_comparison_data$time), "%Y")
+
+    HDD_CDD_size_comparison_data <- HDD_CDD_size_comparison_data %>%
+        cbind(min_EU) %>%
+        cbind(max_EU) %>%
+        cbind(avg_EU) %>%
+        cbind(year) %>%
+        select(c(year, measure, !!country_chart, min_EU, max_EU, avg_EU)) %>%
+        mutate(year = lubridate::year(year))
+
+    # Plot the HDD CDD size comparison as line charts
+    p <- HDD_CDD_size_comparison_data %>%
+        ggplot(aes(x = year)) +
+        # geom_blank(aes(x = year)) +
+        geom_ribbon(aes(
+            x = year,
+            ymax = max_EU,
+            ymin = min_EU,
+            fill = "grey"
+        )) +
+        geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
+        geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
+        scale_fill_identity(guide = "legend", labels = c("Europe range")) +
+        scale_colour_manual(
+            values = c("black" = "black", "red" = "red"),
+            labels = c("Europe average", country_name)
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            axis.title.y = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            text = element_text(size = 15)
+        ) +
+        # ylab("Degree day") +
+        scale_x_continuous(breaks = c(first_year, round((
+            first_year + last_year
+        ) / 2), last_year)) +
+        # scale_y_continuous(labels = scales::number) +
+        expand_limits(y = 0) +
+        scale_y_continuous(breaks = scales::breaks_extended(Q = c(0, 1, 2, 3))) +
+        ggtitle(paste("Heating and cooling degree day in", country_name, " compared to other European countries")) +
+        facet_wrap(
+            ~measure,
+            scales = "free",
+            ncol = 3,
+            labeller = labeller(
+                measure = c(
+                    "CDD" = "Cooling Degree Days",
+                    "HDD" = "Heating Degree Days",
+                    "HH_size" = "Household size"
+                )
+            )
         )
 
-        # Waterfall chart
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure24.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 1600,
+        res = 300
+    )
 
-        Base_label <- paste0(as.character(first_year_chart), " level")
-        Result_label <- paste0(as.character(last_year_chart), " level")
+    # Household intensities
 
-        # define the levels used in the waterfall chart
-        levels_waterfall <- c(
-            Base_label,
+    # Plot the indicators comparison as line chart
+    intensity_comparison_data <-
+        HH_augmented %>%
+        filter(
+            measure %in% c(
+                "energy_per_dwelling",
+                "space_cooling_corrected",
+                "space_heating_corrected",
+                "water_heating",
+                "cooking",
+                "light_appliances",
+                "other",
+                "occupied_dwellings"
+            )
+        ) %>%
+        pivot_wider(
+            names_from = measure,
+            values_from = value
+        ) %>%
+        mutate(
+            cooling_per_dwelling = space_cooling_corrected / occupied_dwellings,
+            heating_per_dwelling = space_heating_corrected / occupied_dwellings,
+            water_heating_per_dwelling = water_heating / occupied_dwellings,
+            cooking_per_dwelling = cooking / occupied_dwellings,
+            light_appliances_per_dwelling = light_appliances / occupied_dwellings,
+            other_per_dwelling = other / occupied_dwellings,
+        ) %>%
+        rename(
+            "Total" = "energy_per_dwelling",
+            "Space heating" = "heating_per_dwelling",
+            "Space cooling" = "cooling_per_dwelling",
+            "Water heating" = "water_heating_per_dwelling",
+            "Cooking" = "cooking_per_dwelling",
+            "Lighting and appliances" = "light_appliances_per_dwelling",
+            "Other" = "other_per_dwelling"
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        # from TJ to MJ
+        mutate(value = value * 100000) %>%
+        pivot_wider(names_from = geo, values_from = value)
+
+    min_EU <-
+        apply(select_if(intensity_comparison_data[, -1], is.numeric),
+            1,
+            min,
+            na.rm = TRUE
+        )
+    max_EU <-
+        apply(select_if(intensity_comparison_data[, -1], is.numeric),
+            1,
+            max,
+            na.rm = TRUE
+        )
+    avg_EU <-
+        apply(select_if(intensity_comparison_data[, -1], is.numeric),
+            1,
+            mean,
+            na.rm = TRUE
+        )
+    year <-
+        as.Date(as.character(intensity_comparison_data$time), "%Y")
+
+    intensity_comparison_data <- intensity_comparison_data %>%
+        cbind(min_EU) %>%
+        cbind(max_EU) %>%
+        cbind(avg_EU) %>%
+        cbind(year) %>%
+        select(c(year, measure, !!country_chart, avg_EU, min_EU, max_EU)) %>%
+        mutate(year = lubridate::year(year))
+
+    # Plot the intensity comparison as line chart
+    p <- intensity_comparison_data %>%
+        filter(measure %in% measure_list) %>%
+        ggplot(aes(x = year)) +
+        # geom_blank(aes(x = year)) +
+        geom_ribbon(aes(
+            x = year,
+            ymax = max_EU,
+            ymin = min_EU,
+            fill = "grey"
+        )) +
+        geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
+        geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
+        scale_fill_identity(guide = "legend", labels = c("Europe range")) +
+        scale_colour_manual(
+            values = c("black" = "black", "red" = "red"),
+            labels = c("Europe average", country_name)
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = c(0.9, 0.1),
+            text = element_text(size = 15)
+        ) +
+        ylab("Residential intensity by end use (MJ / household)") +
+        scale_x_continuous(breaks = c(first_year, round((
+            first_year + last_year
+        ) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ggtitle(paste("Intensity by end use size in", country_name, " compared to other European countries")) +
+        facet_wrap(~ factor(measure, levels = (measure_list)),
+            scales = "free",
+            ncol = 3
+        )
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure25.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 3200,
+        res = 300
+    )
+}
+
+generate_energy_breakdown_charts <- function(
+    HH_energy_breakdown,
+    country_chart,
+    country_name,
+    first_year,
+    last_year,
+    output_path) {
+    # Breakdown of energy consumption by fuel
+
+    HH_energy_breakdown_filtered <- HH_energy_breakdown %>%
+        filter(geo == country_chart, !energy_consumption == 0)
+
+    # Table used to provide figures in the text of the report
+    table_HH_energy_breakdown_filtered <-
+        HH_energy_breakdown_filtered %>%
+        mutate(
+            energy_consumption = round(energy_consumption, 2),
+            share_energy_consumption = round(share_energy_consumption, 3)
+        )
+
+    write.csv(
+        table_HH_energy_breakdown_filtered,
+        paste0(output_path, "Part4_fuel.csv"),
+        row.names = FALSE
+    )
+
+    year <-
+        as.Date(
+            as.character(HH_energy_breakdown_filtered$time),
+            "%Y"
+        )
+
+    p <- HH_energy_breakdown_filtered %>%
+        cbind(year) %>%
+        select(-time) %>%
+        mutate(year = lubridate::year(year)) %>%
+        ggplot(aes(x = year, y = energy_consumption / 1000)) +
+        geom_bar(aes(fill = product), stat = "identity") +
+        scale_fill_manual(values = FinalProductsColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_x_continuous(breaks = c(first_year, round((
+            first_year + last_year
+        ) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab(paste("Energy consumption (PJ)")) +
+        ggtitle(paste("Economy energy consumption by fuel for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure20.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+    p <- HH_energy_breakdown_filtered %>%
+        filter(time %in% c(first_year, last_year)) %>%
+        ggplot(aes(
+            x = factor(time),
+            y = share_energy_consumption,
+            fill = product
+        )) +
+        geom_bar(position = "fill", stat = "identity") +
+        scale_fill_manual(values = FinalProductsColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::percent) +
+        geom_text(
+            aes(label = paste0(
+                round(share_energy_consumption * 100, 0), "%"
+            )),
+            position = position_stack(vjust = 0.5)
+        ) +
+        ylab(paste("Share in final energy consumption")) +
+        ggtitle(paste("Economy energy consumption by fuel for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure20B.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_country_charts <- function(
+    HH,
+    year_chart,
+    country_name,
+    country_chart,
+    output_path) {
+    # energy consumption by end-use
+
+    HH_filtered_data <- HH %>%
+        filter(geo == country_chart) %>%
+        rename(
+            "Space heating" = "space_heating",
+            "Space cooling" = "space_cooling",
+            "Water heating" = "water_heating",
+            "Cooking" = "cooking",
+            "Lighting and appliances" = "light_appliances",
+            "Other" = "other"
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "end_use",
+            values_to = "value"
+        ) %>%
+        filter(
+            end_use %in% c(
+                "Space heating",
+                "Space cooling",
+                "Water heating",
+                "Cooking",
+                "Lighting and appliances",
+                "Other"
+            ), !value == 0
+        ) %>%
+        mutate(end_use = factor(end_use, levels = end_use_list))
+
+    HH_totals <- HH %>%
+        filter(geo == country_chart) %>%
+        rename("Total reported" = "total_bal") %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "end_use",
+            values_to = "value"
+        ) %>%
+        filter(end_use == "Total reported")
+
+    year <- as.Date(as.character(HH_filtered_data$time), "%Y")
+    year2 <- as.Date(as.character(HH_totals$time), "%Y")
+
+    p <- HH_filtered_data %>%
+        cbind(year) %>%
+        select(-time) %>%
+        mutate(year = lubridate::year(year)) %>%
+        ggplot(aes(x = year, y = value / 1000)) +
+        geom_bar(aes(fill = end_use), stat = "identity") +
+        scale_fill_manual(values = EndUseColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::number) +
+        scale_x_continuous(breaks = c(first_year, round((
+            first_year + last_year
+        ) / 2), last_year)) +
+        ylab(paste("Energy consumption (PJ)")) +
+        geom_point(
+            data = HH_totals %>%
+                mutate(year2 = lubridate::year(year2)),
+            aes(
+                x = year2,
+                y = value / 1000,
+                color = end_use
+            ),
+            size = 3
+        ) +
+        scale_color_manual(name = "", values = "black") +
+        ggtitle(paste("Residential energy consumption by end-use"))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure21.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+
+    # 2 years share
+
+    p <- HH_filtered_data %>%
+        filter(
+            time %in% c(first_year, last_year),
+            geo == country_chart
+        ) %>%
+        mutate(end_use = factor(end_use, levels = end_use_list)) %>%
+        group_by(geo, time) %>%
+        mutate(value = value / sum(value, na.rm = TRUE)) %>%
+        ungroup() %>%
+        ggplot(aes(
+            x = factor(time),
+            y = value,
+            fill = end_use
+        )) +
+        geom_bar(position = "fill", stat = "identity") +
+        scale_fill_manual(values = EndUseColors, limits = force) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_y_continuous(labels = scales::percent) +
+        geom_text(aes(label = paste0(round(value * 100, 0), "%")),
+            position = position_stack(vjust = 0.5)
+        ) +
+        ylab(paste("Share of energy consumption")) +
+        ggtitle(paste("Economy energy consumption by subsector for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure21B.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_final_effects_charts <- function(
+    HH_LMDI,
+    country_chart,
+    country_name,
+    year_chart,
+    first_year,
+    last_year,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
+    # prepare data for the simple effect chart
+    effects_df <- HH_LMDI %>%
+        filter(
+            geo == country_chart,
+            time <= last_year_chart,
+            time >= first_year_chart
+        ) %>%
+        rename(
+            "Population" = "population",
+            "Dwelling per capita" = "household_size",
+            "Energy per dwelling" = "household_consumption",
+            "Weather" = "weather"
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "Effect",
+            values_to = "value"
+        ) %>%
+        filter(
+            Effect %in% c(
+                "Population",
+                "Dwelling per capita",
+                "Energy per dwelling",
+                "Weather"
+            )
+        )
+
+    results_df <- HH_LMDI %>%
+        filter(
+            geo == country_chart,
+            time <= last_year_chart,
+            time >= first_year_chart
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        filter(measure == "value_delta_total_res")
+
+    # Plot the simple effect as bar chart
+    p <- ggplot(
+        data = effects_df,
+        aes(
+            x = factor(time),
+            y = value / 1000
+        )
+    ) +
+        geom_bar(aes(fill = Effect),
+            stat = "identity"
+        ) +
+        scale_fill_manual(values = HouseholdColorsEffect) +
+        geom_point(
+            data = results_df,
+            aes(y = value / 1000),
+            size = 3
+        ) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            text = element_text(size = 15)
+        ) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Energy consumption variation (PJ)") +
+        ggtitle(paste("Decompostion analysis of", country_name, "'s residential energy consumption variation, \n  all years related to", as.character(first_year)))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure22D.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 1600,
+        res = 300
+    )
+
+    # Waterfall chart
+
+    Base_label <- paste0(as.character(first_year_chart), " level")
+    Result_label <- paste0(as.character(last_year_chart), " level")
+
+    # define the levels used in the waterfall chart
+    levels_waterfall <- c(
+        Base_label,
+        "Population",
+        "Dwelling/cap.",
+        "Energy/dwell.",
+        "Weather",
+        Result_label
+    )
+
+    # prepare data for the waterfall chart (see plotly waterfall for explanations)
+    household_Waterfall_data <- HH_LMDI %>%
+        filter(
+            geo == country_chart,
+            time == last_year_chart
+        ) %>%
+        rename(
+            "Population" = "population",
+            "Dwelling/cap." = "household_size",
+            "Energy/dwell." = "household_consumption",
+            "Weather" = "weather",
+            !!Base_label := "value_energy_consumption_baseline",
+            !!Result_label := "value_energy_consumption_end"
+        ) %>%
+        select(
+            !!Base_label,
             "Population",
             "Dwelling/cap.",
             "Energy/dwell.",
             "Weather",
-            Result_label
-        )
-
-        # prepare data for the waterfall chart (see plotly waterfall for explanations)
-        household_Waterfall_data <- HH_LMDI %>%
-            filter(
-                geo == country_chart,
-                time == last_year_chart
-            ) %>%
-            rename(
-                "Population" = "population",
-                "Dwelling/cap." = "household_size",
-                "Energy/dwell." = "household_consumption",
-                "Weather" = "weather",
-                !!Base_label := "value_energy_consumption_baseline",
-                !!Result_label := "value_energy_consumption_end"
-            ) %>%
-            select(
-                !!Base_label,
-                "Population",
-                "Dwelling/cap.",
-                "Energy/dwell.",
-                "Weather",
-                !!Result_label
-            ) %>%
-            pivot_longer(
-                cols = everything(),
-                names_to = "x",
-                values_to = "y"
-            ) %>%
-            mutate(
-                x = factor(x, level = levels_waterfall),
-                text = paste(as.character(round(y, 2)), "TJ", sep = " "),
-                measure = case_when(
-                    (x == !!Result_label) ~ "total",
-                    TRUE ~ "relative"
-                )
+            !!Result_label
+        ) %>%
+        pivot_longer(
+            cols = everything(),
+            names_to = "x",
+            values_to = "y"
+        ) %>%
+        mutate(
+            x = factor(x, level = levels_waterfall),
+            text = paste(as.character(round(y, 2)), "TJ", sep = " "),
+            measure = case_when(
+                (x == !!Result_label) ~ "total",
+                TRUE ~ "relative"
             )
-
-        write.csv(household_Waterfall_data,
-            paste0(output_path, "Part4_waterfall.csv"),
-            row.names = FALSE
         )
 
-        p <- household_Waterfall_data %>%
-            filter(x != Result_label) %>%
-            select(x, y) %>%
-            mutate(y = round(y / 1000, 2)) %>%
-            waterfall(calc_total = TRUE, rect_text_size = 1.5) +
-            theme_classic() +
-            # xlab("Effects") +
-            theme(
-                axis.title.x = element_blank(),
-                text = element_text(size = 15)
-            ) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Energy consumption level and effect (PJ)") +
-            scale_x_discrete(labels = levels_waterfall)
+    write.csv(household_Waterfall_data,
+        paste0(output_path, "Part4_waterfall.csv"),
+        row.names = FALSE
+    )
 
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure22.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 1600,
-            res = 300
-        )
+    p <- household_Waterfall_data %>%
+        filter(x != Result_label) %>%
+        select(x, y) %>%
+        mutate(y = round(y / 1000, 2)) %>%
+        waterfall(calc_total = TRUE, rect_text_size = 1.5) +
+        theme_classic() +
+        # xlab("Effects") +
+        theme(
+            axis.title.x = element_blank(),
+            text = element_text(size = 15)
+        ) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Energy consumption level and effect (PJ)") +
+        scale_x_discrete(labels = levels_waterfall)
 
-        # Intensity effect chart
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure22.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 1600,
+        res = 300
+    )
 
-        # prepare data for the intensity effect chart
-        HH_intensity_effect_data <-
-            HH_LMDI %>%
-            filter(
-                geo == country_chart,
-                time >= first_year,
-                time <= last_year
-            ) %>%
-            group_by(geo, time) %>%
-            mutate(
-                "Without intensity effect" = sum(
-                    c(
-                        value_energy_consumption_baseline,
-                        population,
-                        household_size
-                    ),
-                    na.rm = TRUE
+    # Intensity effect chart
+
+    # prepare data for the intensity effect chart
+    HH_intensity_effect_data <-
+        HH_LMDI %>%
+        filter(
+            geo == country_chart,
+            time >= first_year,
+            time <= last_year
+        ) %>%
+        group_by(geo, time) %>%
+        mutate(
+            "Without intensity effect" = sum(
+                c(
+                    value_energy_consumption_baseline,
+                    population,
+                    household_size
                 ),
-                "Temperature-corrected energy consumption" = sum(
-                    c(
-                        value_energy_consumption_baseline,
-                        population,
-                        household_size,
-                        household_consumption
-                    ),
-                    na.rm = TRUE
-                )
-            ) %>%
-            ungroup() %>%
-            select(
-                -c(
-                    household_consumption,
-                    value_energy_consumption_end,
-                    weather,
+                na.rm = TRUE
+            ),
+            "Temperature-corrected energy consumption" = sum(
+                c(
+                    value_energy_consumption_baseline,
                     population,
                     household_size,
-                    value_delta_total_res,
-                    base_year,
-                    value_energy_consumption_baseline,
-                    energy_consumption_delta_calc
-                )
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "measure",
-                values_to = "value"
-            ) %>%
-            mutate(measure = factor(
-                measure,
-                levels = c(
-                    "Without intensity effect",
-                    "Temperature-corrected energy consumption"
-                )
-            )) %>%
-            arrange(measure)
-
-        write.csv(HH_intensity_effect_data,
-            paste0(output_path, "Part4_intensity_effect.csv"),
-            row.names = FALSE
-        )
-
-        # Plot the intensity effect as area chart
-        p <- HH_intensity_effect_data %>%
-            ggplot() +
-            geom_bar(
-                data = (
-                    HH_intensity_effect_data %>%
-                        filter(measure == "Temperature-corrected energy consumption")
+                    household_consumption
                 ),
-                aes(
-                    y = value / 1000,
-                    x = time,
-                    fill = measure
-                ),
-                stat = "identity",
-                alpha = 0.5
-            ) +
-            scale_fill_manual(values = c("Corrected energy consumption" = "blue4")) +
-            geom_point(
-                data = (
-                    HH_intensity_effect_data %>%
-                        filter(
-                            measure == "Without intensity effect",
-                            time >= first_year_chart,
-                            time <= last_year_chart
-                        )
-                ),
-                aes(
-                    y = value / 1000,
-                    x = time,
-                    color = measure
-                ),
-                size = 3,
-                alpha = 0.5
-            ) +
-            scale_color_manual(values = c("Without intensity effect" = "green4")) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                legend.box = "horizontal",
-                text = element_text(size = 15)
-            ) +
-            guides(fill = guide_legend(ncol = 3)) +
-            scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Energy consumption (PJ)") +
-            expand_limits(y = 0) +
-        	ggtitle(paste("Corrected energy consumption in households vs theoretical \n(without energy improvements) for",country_name))
-
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure23.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 2400,
-            res = 300
-        )
-
-        # heating degree day chart
-
-        write.csv(
-            HH_augmented %>%
-                filter(
-                    measure %in% c("HDD", "CDD", "HH_size"),
-                    geo == country_chart
-                ),
-            paste0(output_path, "Part4_HDD_CDD_HH.csv"),
-            row.names = FALSE
-        )
-
-        # Plot the heating degree day comparison as line chart
-        HDD_CDD_size_comparison_data <- HH_augmented %>%
-            filter(measure %in% c("HDD", "CDD", "HH_size")) %>%
-            pivot_wider(names_from = geo, values_from = value)
-
-        min_EU <-
-            apply(select_if(HDD_CDD_size_comparison_data[, -1], is.numeric),
-                1,
-                min,
                 na.rm = TRUE
             )
-        max_EU <-
-            apply(select_if(HDD_CDD_size_comparison_data[, -1], is.numeric),
-                1,
-                max,
-                na.rm = TRUE
+        ) %>%
+        ungroup() %>%
+        select(
+            -c(
+                household_consumption,
+                value_energy_consumption_end,
+                weather,
+                population,
+                household_size,
+                value_delta_total_res,
+                base_year,
+                value_energy_consumption_baseline,
+                energy_consumption_delta_calc
             )
-        avg_EU <-
-            apply(select_if(HDD_CDD_size_comparison_data[, -1], is.numeric),
-                1,
-                mean,
-                na.rm = TRUE
+        ) %>%
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "measure",
+            values_to = "value"
+        ) %>%
+        mutate(measure = factor(
+            measure,
+            levels = c(
+                "Without intensity effect",
+                "Temperature-corrected energy consumption"
             )
-        year <-
-            as.Date(as.character(HDD_CDD_size_comparison_data$time), "%Y")
+        )) %>%
+        arrange(measure)
 
-        HDD_CDD_size_comparison_data <- HDD_CDD_size_comparison_data %>%
-            cbind(min_EU) %>%
-            cbind(max_EU) %>%
-            cbind(avg_EU) %>%
-            cbind(year) %>%
-            select(c(year, measure, !!country_chart, min_EU, max_EU, avg_EU)) %>%
-            mutate(year = lubridate::year(year))
+    write.csv(HH_intensity_effect_data,
+        paste0(output_path, "Part4_intensity_effect.csv"),
+        row.names = FALSE
+    )
 
-        # Plot the HDD CDD size comparison as line charts
-        p <- HDD_CDD_size_comparison_data %>%
-            ggplot(aes(x = year)) +
-            # geom_blank(aes(x = year)) +
-            geom_ribbon(aes(
-                x = year,
-                ymax = max_EU,
-                ymin = min_EU,
-                fill = "grey"
-            )) +
-            geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
-            geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
-            scale_fill_identity(guide = "legend", labels = c("Europe range")) +
-            scale_colour_manual(
-                values = c("black" = "black", "red" = "red"),
-                labels = c("Europe average", country_name)
-            ) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                axis.title.y = element_blank(),
-                legend.title = element_blank(),
-                legend.position = "bottom",
-                text = element_text(size = 15)
-            ) +
-            # ylab("Degree day") +
-            scale_x_continuous(breaks = c(first_year, round((
-                first_year + last_year
-            ) / 2), last_year)) +
-            # scale_y_continuous(labels = scales::number) +
-            expand_limits(y = 0) +
-            scale_y_continuous(breaks = scales::breaks_extended(Q = c(0, 1, 2, 3))) +
-            ggtitle(paste("Heating and cooling degree day in", country_name, " compared to other European countries")) +
-            facet_wrap(
-                ~measure,
-                scales = "free",
-                ncol = 3,
-                labeller = labeller(
-                    measure = c(
-                        "CDD" = "Cooling Degree Days",
-                        "HDD" = "Heating Degree Days",
-                        "HH_size" = "Household size"
+    # Plot the intensity effect as area chart
+    p <- HH_intensity_effect_data %>%
+        ggplot() +
+        geom_bar(
+            data = (
+                HH_intensity_effect_data %>%
+                    filter(measure == "Temperature-corrected energy consumption")
+            ),
+            aes(
+                y = value / 1000,
+                x = time,
+                fill = measure
+            ),
+            stat = "identity",
+            alpha = 0.5
+        ) +
+        scale_fill_manual(values = c("Corrected energy consumption" = "blue4")) +
+        geom_point(
+            data = (
+                HH_intensity_effect_data %>%
+                    filter(
+                        measure == "Without intensity effect",
+                        time >= first_year_chart,
+                        time <= last_year_chart
                     )
+            ),
+            aes(
+                y = value / 1000,
+                x = time,
+                color = measure
+            ),
+            size = 3,
+            alpha = 0.5
+        ) +
+        scale_color_manual(values = c("Without intensity effect" = "green4")) +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "bottom",
+            legend.box = "horizontal",
+            text = element_text(size = 15)
+        ) +
+        guides(fill = guide_legend(ncol = 3)) +
+        scale_x_continuous(breaks = c(first_year, round((first_year + last_year) / 2), last_year)) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Energy consumption (PJ)") +
+        expand_limits(y = 0) +
+        ggtitle(paste("Corrected energy consumption in households vs theoretical \n(without energy improvements) for", country_name))
+
+    print_chart(p,
+        filename = paste0(country_chart, "_Figure23.jpg"),
+        output_path = output_path,
+        width = 2400,
+        height = 2400,
+        res = 300
+    )
+}
+
+generate_coverage_chart <- function(
+    HH_augmented,
+    year_chart,
+    output_path) {
+    # Data coverage chart
+    missing_data <- HH_augmented %>%
+        filter(
+            measure %in% c(
+                "space_heating",
+                "space_cooling",
+                "water_heating",
+                "cooking",
+                "light_appliances",
+                "other"
+            ),
+            geo != "EU27",
+        ) %>%
+        mutate(
+            missing =
+                case_when(
+                    !is.na(value) ~ 0,
+                    TRUE ~ 1
                 )
-            )
+        ) %>%
+        select(-measure) %>%
+        group_by(geo, time) %>%
+        summarize(missing = sum(missing))
 
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure24.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 1600,
-            res = 300
-        )
+    write.csv(missing_data,
+        paste0(output_path, "Part3_missing_data.csv"),
+        row.names = FALSE
+    )
 
-        # Household intensities
+    p <- missing_data %>%
+        ggplot(aes(
+            x = reorder(geo, desc(geo)),
+            y = factor(time),
+            fill = missing
+        )) +
+        coord_flip() +
+        geom_tile() +
+        theme_classic() +
+        scale_fill_gradient(
+            low = "white",
+            high = "red",
+            limits = c(0, 6),
+            breaks = scales::pretty_breaks(n = 6)(0:6)
+        ) +
+        theme(
+            axis.title.x = element_blank(),
+            axis.title.y = element_blank()
+        ) +
+        labs(fill = "Missing end-uses") +
+        ggtitle("Completeness of coverage (end use energy consumption) \nfor European countries across years")
 
-        # Plot the indicators comparison as line chart
-        intensity_comparison_data <-
-            HH_augmented %>%
-            filter(
-                measure %in% c(
-                    "energy_per_dwelling",
-                    "space_cooling_corrected",
-                    "space_heating_corrected",
-                    "water_heating",
-                    "cooking",
-                    "light_appliances",
-                    "other",
-                    "occupied_dwellings"
-                )
-            ) %>%
-            pivot_wider(
-                names_from = measure,
-                values_from = value
-            ) %>%
-            mutate(
-                cooling_per_dwelling = space_cooling_corrected / occupied_dwellings,
-                heating_per_dwelling = space_heating_corrected / occupied_dwellings,
-                water_heating_per_dwelling = water_heating / occupied_dwellings,
-                cooking_per_dwelling = cooking / occupied_dwellings,
-                light_appliances_per_dwelling = light_appliances / occupied_dwellings,
-                other_per_dwelling = other / occupied_dwellings,
-            ) %>%
-            rename(
-                "Total" = "energy_per_dwelling",
-                "Space heating" = "heating_per_dwelling",
-                "Space cooling" = "cooling_per_dwelling",
-                "Water heating" = "water_heating_per_dwelling",
-                "Cooking" = "cooking_per_dwelling",
-                "Lighting and appliances" = "light_appliances_per_dwelling",
-                "Other" = "other_per_dwelling"
-            ) %>%
-            pivot_longer(
-                cols = -c(geo, time),
-                names_to = "measure",
-                values_to = "value"
-            ) %>%
-            # from TJ to MJ
-            mutate(value = value * 100000) %>%
-            pivot_wider(names_from = geo, values_from = value)
+    print_chart(p,
+        filename = "EU27_Figure25C.jpg",
+        output_path = output_path,
+        width = 2400,
+        height = 3200,
+        res = 300
+    )
+}
 
-        min_EU <-
-            apply(select_if(intensity_comparison_data[, -1], is.numeric),
-                1,
-                min,
-                na.rm = TRUE
-            )
-        max_EU <-
-            apply(select_if(intensity_comparison_data[, -1], is.numeric),
-                1,
-                max,
-                na.rm = TRUE
-            )
-        avg_EU <-
-            apply(select_if(intensity_comparison_data[, -1], is.numeric),
-                1,
-                mean,
-                na.rm = TRUE
-            )
-        year <-
-            as.Date(as.character(intensity_comparison_data$time), "%Y")
+generate_eu_comparison_chart <- function(
+    HH_augmented,
+    first_year_chart,
+    last_year_chart,
+    output_path) {
+    # EU intensity comparison chart
+    household_intensity_EU_comparison_data <-
+        HH_augmented %>%
+        filter(
+            measure == "energy_per_dwelling",
+            time %in% c(first_year_chart, last_year_chart),
+            geo != "EU27"
+        ) %>%
+        arrange(value) %>%
+        merge(eu_countries, by.x = "geo", by.y = "code") %>%
+        select(-c("geo", "label"))
 
-        intensity_comparison_data <- intensity_comparison_data %>%
-            cbind(min_EU) %>%
-            cbind(max_EU) %>%
-            cbind(avg_EU) %>%
-            cbind(year) %>%
-            select(c(year, measure, !!country_chart, avg_EU, min_EU, max_EU)) %>%
-            mutate(year = lubridate::year(year))
+    write.csv(household_intensity_EU_comparison_data,
+        paste0(output_path, "Part3_EU27.csv"),
+        row.names = FALSE
+    )
 
-        # Plot the intensity comparison as line chart
-        p <- intensity_comparison_data %>%
-            filter(measure %in% measure_list) %>%
-            ggplot(aes(x = year)) +
-            # geom_blank(aes(x = year)) +
-            geom_ribbon(aes(
-                x = year,
-                ymax = max_EU,
-                ymin = min_EU,
-                fill = "grey"
-            )) +
-            geom_line(aes(x = year, y = avg_EU, color = "black"), size = 1) +
-            geom_line(aes(x = year, y = .data[[!!country_chart]], color = "red"), size = 1) +
-            scale_fill_identity(guide = "legend", labels = c("Europe range")) +
-            scale_colour_manual(
-                values = c("black" = "black", "red" = "red"),
-                labels = c("Europe average", country_name)
-            ) +
-            theme_classic() +
-            theme(
-                axis.title.x = element_blank(),
-                legend.title = element_blank(),
-                legend.position = c(0.9, 0.1),
-                text = element_text(size = 15)
-            ) +
-            ylab("Residential intensity by end use (MJ / household)") +
-            scale_x_continuous(breaks = c(first_year, round((
-                first_year + last_year
-            ) / 2), last_year)) +
-            scale_y_continuous(labels = scales::number) +
-            ggtitle(paste("Intensity by end use size in", country_name, " compared to other European countries")) +
-            facet_wrap(~ factor(measure, levels = (measure_list)),
-                scales = "free",
-                ncol = 3
-            )
+    # Rank the countries by intensity on last year
+    country_ranked <- household_intensity_EU_comparison_data %>%
+        filter(time == last_year_chart) %>%
+        arrange(value) %>%
+        pull(name)
 
-		print_chart(p,
-            filename = paste0(country_chart, "_Figure25.jpg"),
-            output_path = output_path,
-            width = 2400,
-            height = 3200,
-            res = 300
-        )
-    }
+    p <- household_intensity_EU_comparison_data %>%
+        ggplot(aes(
+            x = factor(name, levels = country_ranked),
+            y = value,
+            color = as.factor(time)
+        )) +
+        geom_point() +
+        geom_line(aes(group = name), colour = "grey") +
+        coord_flip() +
+        theme_classic() +
+        theme(
+            axis.title.y = element_blank(),
+            legend.title = element_blank(),
+            legend.position = c(0.8, 0.2),
+            legend.box = "horizontal"
+        ) +
+        scale_y_continuous(labels = scales::number) +
+        ylab("Energy intensity (TJ / dwelling)") +
+        ggtitle(paste("Energy comsumption per household in European countries"))
 
-    if (country == "EU27") {
-        output_path <- paste0(chart_path, "/EU27/")
-
-        # Data coverage chart
-        missing_data <- HH_augmented %>%
-            filter(
-                measure %in% c(
-                    "space_heating",
-                    "space_cooling",
-                    "water_heating",
-                    "cooking",
-                    "light_appliances",
-                    "other"
-                ),
-                geo != "EU27",
-            ) %>%
-            mutate(
-                missing =
-                    case_when(
-                        !is.na(value) ~ 0,
-                        TRUE ~ 1
-                    )
-            ) %>%
-            select(-measure) %>%
-            group_by(geo, time) %>%
-            summarize(missing = sum(missing))
-
-        write.csv(missing_data,
-            paste0(output_path, "Part3_missing_data.csv"),
-            row.names = FALSE
-        )
-
-        p <- missing_data %>%
-            ggplot(aes(
-                x = reorder(geo, desc(geo)),
-                y = factor(time),
-                fill = missing
-            )) +
-            coord_flip() +
-            geom_tile() +
-            theme_classic() +
-            scale_fill_gradient(
-                low = "white",
-                high = "red",
-                limits = c(0, 6),
-                breaks = scales::pretty_breaks(n = 6)(0:6)
-            ) +
-            theme(
-                axis.title.x = element_blank(),
-                axis.title.y = element_blank()
-            ) +
-            labs(fill = "Missing end-uses") +
-        	ggtitle("Completeness of coverage (end use energy consumption) \nfor European countries across years")
-
-		print_chart(p,
-            filename = "EU27_Figure25C.jpg",
-            output_path = output_path,
-            width = 2400,
-            height = 3200,
-            res = 300
-        )
-
-        # EU intensity comparison chart
-        household_intensity_EU_comparison_data <-
-            HH_augmented %>%
-            filter(
-                measure == "energy_per_dwelling",
-                time %in% c(first_year_chart, last_year_chart),
-                geo != "EU27"
-            ) %>%
-            arrange(value) %>%
-            merge(eu_countries, by.x = "geo", by.y = "code") %>%
-            select(-c("geo", "label"))
-
-        write.csv(household_intensity_EU_comparison_data,
-            paste0(output_path, "Part3_EU27.csv"),
-            row.names = FALSE
-        )
-
-        # Rank the countries by intensity on last year
-        country_ranked <- household_intensity_EU_comparison_data %>%
-            filter(time == last_year_chart) %>%
-            arrange(value) %>%
-            pull(name)
-
-        p <- household_intensity_EU_comparison_data %>%
-            ggplot(aes(
-                x = factor(name, levels = country_ranked),
-                y = value,
-                color = as.factor(time)
-            )) +
-            geom_point() +
-            geom_line(aes(group = name), colour = "grey") +
-            coord_flip() +
-            theme_classic() +
-            theme(
-                axis.title.y = element_blank(),
-                legend.title = element_blank(),
-                legend.position = c(0.8, 0.2),
-                legend.box = "horizontal"
-            ) +
-            scale_y_continuous(labels = scales::number) +
-            ylab("Energy intensity (TJ / dwelling)") + 
-        	ggtitle(paste("Energy comsumption per household in European countries"))
-
-		print_chart(p,
-            filename = "EU27_Figure25B.jpg",
-            output_path = output_path,
-            width = 2400,
-            height = 1600,
-            res = 300
-        )
-    }
+    print_chart(p,
+        filename = "EU27_Figure25B.jpg",
+        output_path = output_path,
+        width = 2400,
+        height = 1600,
+        res = 300
+    )
 }

@@ -7,7 +7,7 @@ source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
 source(path(getwd(), "scripts/0_support/mapping_products.R"))
 source(path(getwd(), "scripts/0_support/mapping_colors.R"))
 source(path(getwd(), "scripts/0_support/manual_corrections.R"))
-source(path(getwd(), "scripts/1_industry/1_shared.R"))
+source(path(getwd(), "scripts/4_all_sectors/shared.R"))
 
 # Data preparation
 industry_GVA_primary <- function(

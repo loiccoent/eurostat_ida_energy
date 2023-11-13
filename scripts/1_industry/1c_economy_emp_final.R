@@ -7,7 +7,7 @@ source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
 source(path(getwd(), "scripts/0_support/mapping_products.R"))
 source(path(getwd(), "scripts/0_support/mapping_colors.R"))
 source(path(getwd(), "scripts/0_support/manual_corrections.R"))
-source(path(getwd(), "scripts/1_industry/1_shared.R"))
+source(path(getwd(), "scripts/4_all_sectors/shared.R"))
 
 # Data preparation
 economy_emp_final <- function(
@@ -93,7 +93,6 @@ economy_emp_final <- function(
         first_year_chart <- economy_emp_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- economy_emp_last_year(country = country_chart, final_year = last_year)
 
-
         generate_country_charts(
             economy_emp_final_complete,
             year_chart = year_chart,
@@ -154,6 +153,7 @@ economy_emp_final <- function(
 
 prepare_energy_consumption <- function(
     nrg_bal_c,
+    
     first_year,
     last_year,
     country_list) {
