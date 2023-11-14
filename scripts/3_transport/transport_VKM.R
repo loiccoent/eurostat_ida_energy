@@ -67,15 +67,17 @@ transport_final <- function(
 
     # filter out sectors with incomplete data
     transport_filtered <- filter_energy_consumption_activity(transport_complete)
+    
+    # Effects calculation
+
     # calculate the required indicators for the 3 effects
     transport_augmented <- add_share_sectors(transport_filtered)
     transport_total <- add_total_sectors(transport_augmented)
-    # calculate the indexed and differenced indicators
+   
+   # calculate the indexed and differenced indicators
     transport_full <- transport_augmented %>%
         rbind(transport_total) %>%
         add_index_delta()
-
-    # Effects calculation
 
     # Calculate the effects using the LMDI formulas
     transport_LMDI <- apply_LMDI(transport_full)

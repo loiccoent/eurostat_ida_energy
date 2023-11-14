@@ -74,10 +74,10 @@ household_final <- function(
 
     HH_augmented <- join_energy_consumption_activity(HH)
 
+    # Effects calculation
+
     # calculate the indexed and differenced indicators
     HH_full <- add_index_delta(HH_augmented)
-
-    # Effects calculation
 
     # Calculate the effects using the LMDI formulas
     HH_LMDI <- apply_LMDI(HH_full)

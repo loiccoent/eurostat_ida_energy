@@ -63,15 +63,17 @@ economy_emp_final <- function(
 
     # filter out sectors with incomplete data
     economy_emp_final_filtered <- filter_energy_consumption_activity(economy_emp_final_complete)
+    
+    # Effects calculation
+
     # calculate the required indicators for the 3 effects
     economy_emp_final_augmented <- add_share_sectors(economy_emp_final_filtered)
     economy_emp_final_total <- add_total_sectors(economy_emp_final_augmented)
+    
     # Calculate the indexed and differenced indicators
     economy_emp_final_full <- economy_emp_final_augmented %>%
         rbind(economy_emp_final_total) %>%
         add_index_delta()
-
-    # Effects calculation
 
     # Calculate the effects using the LMDI formulas
     economy_emp_final_LMDI <- apply_LMDI(economy_emp_final_full)

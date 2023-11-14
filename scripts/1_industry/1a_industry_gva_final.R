@@ -63,16 +63,18 @@ industry_GVA_final <- function(
 
     # filter out sectors with incomplete data
     industry_GVA_final_filtered <- filter_energy_consumption_activity(industry_GVA_final_complete)
+    
+    # Effects calculation
+
     # calculate the required indicators for the 3 effects
     industry_GVA_final_augmented <- add_share_sectors(industry_GVA_final_filtered)
     industry_GVA_final_total <- add_total_sectors(industry_GVA_final_augmented)
+
     # Calculate the indexed and indexed indicators
     industry_GVA_final_full <- industry_GVA_final_augmented %>%
         rbind(industry_GVA_final_total) %>%
         add_index_delta()
-
-    # Effects calculation
-
+    
     # Calculate the effects using the LMDI formulas
     industry_GVA_final_LMDI <- apply_LMDI(industry_GVA_final_full)
 
