@@ -62,7 +62,11 @@ industry_GVA_final <- function(
     join_energy_consumption_activity()
 
     # filter out sectors with incomplete data
-    industry_GVA_final_filtered <- filter_energy_consumption_activity(industry_GVA_final_complete)
+    industry_GVA_final_filtered <- filter_energy_consumption_activity(
+        industry_GVA_final_complete,
+        first_year= first_year,
+        last_year = last_year
+        )
     
     # Effects calculation
 
@@ -185,7 +189,8 @@ prepare_activity <- function(
             last_year = last_year,
             country_list = country_list
         ) %>%
-    apply_gva_corrections()
+    apply_gva_corrections() %>%
+	reverse_negative_gva()
     }
 
 join_energy_consumption_activity <- function(df) {
@@ -248,8 +253,14 @@ add_share_sectors <- function(df) {
         ungroup()
 }
 
-filter_energy_consumption_activity <- function(df) {
-    filter_industry_GVA(df)
+filter_energy_consumption_activity <- function(
+    df,
+    first_year,
+    last_year) {
+    filter_industry_GVA(
+        df,         
+        first_year= first_year,
+        last_year = last_year)
 }
 
 add_total_sectors <- function(df) {

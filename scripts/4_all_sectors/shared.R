@@ -1,3 +1,46 @@
+reverse_negative_gva <- function(df) {
+	for (i in 1:nrow(df)) {
+		if (!is.na(df$GVA[i]) && df$GVA[i] < 0) {
+			df$GVA[i] <- -df$GVA[i]
+			message(paste(df$geo[i], " ", df$time[i], " ", df$sector[i], " - ", "negative GVA reversed"))
+		}
+	}
+	return(df)
+}
+
+filter_industry_GVA <- function(
+    df, 
+    first_year,
+    last_year
+    ) {
+    unique_countries <- unique(df$geo)
+    unique_sectors <- unique(df$sector)
+
+    for (country in unique_countries) {
+        first_year_shown <- industry_GVA_base_year(country = country, first_year = first_year)
+        last_year_shown <- industry_GVA_last_year(country = country, final_year = last_year)
+        for (sector in unique_sectors) {
+            subset_df <- df[
+                df$geo == country & 
+                df$sector == sector & 
+                df$time <= last_year_shown &
+                df$time >= first_year_shown, 
+                ]
+            if (any(is.na(subset_df$GVA) | subset_df$GVA == 0) && 
+                all(!is.na(subset_df$energy) & subset_df$energy != 0)) {
+                df <- df[!(df$geo == country & df$sector == sector), ]
+                message(paste("For country", country, ", the sector", sector, "was removed (missing GVA)"))
+            } else if (any(is.na(subset_df$energy) | subset_df$energy == 0) && 
+                       all(!is.na(subset_df$GVA) & subset_df$GVA != 0)) {
+                df <- df[!(df$geo == country & df$sector == sector), ]
+                message(paste("For country", country, ", the sector", sector, "was removed (missing energy)"))
+            }
+        }
+    }
+
+    return(df)
+}
+
 prepare_energy_product_breakdown <- function(
     nrg_bal_c,
     first_year,
