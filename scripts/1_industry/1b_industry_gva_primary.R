@@ -121,23 +121,6 @@ industry_GVA_primary <- function(
         first_year_chart <- industry_GVA_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- industry_GVA_last_year(country = country_chart, final_year = last_year)
 
-        generate_country_charts(
-            industry_GVA_primary_complete,
-            year_chart = year_chart,
-            country_name = country_name,
-            country_chart = country_chart,
-            output_path = output_path
-        )
-
-        generate_subsectors_charts(
-            industry_GVA_primary_full,
-            country_name = country_name,
-            country_chart = country_chart,
-            first_year_chart = first_year_chart,
-            last_year_chart = last_year_chart,
-            output_path = output_path
-        )
-
         generate_ele_jeat_share_primary_charts(
             ele_heat_share_primary,
             country_chart = country_chart,
@@ -165,12 +148,29 @@ industry_GVA_primary <- function(
             output_path = output_path
         )
 
+        generate_country_charts(
+            industry_GVA_primary_complete,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
+
+        generate_subsectors_charts(
+            industry_GVA_primary_full,
+            country_name = country_name,
+            country_chart = country_chart,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+        )
+
         # Simple effect decomposition
         generate_primary_effects_charts(
             industry_GVA_primary_LMDI,
             country_chart = country_chart,
             country_name = country_name,
-            year_chart = year_chart,
             first_year = first_year,
             last_year = last_year,
             first_year_chart = first_year_chart,
@@ -184,7 +184,7 @@ industry_GVA_primary <- function(
 
         generate_coverage_chart(
             industry_GVA_primary_complete,
-            year_chart = year_chart,
+            last_year_chart = last_year_chart,
             output_path = output_path
         )
 
@@ -581,11 +581,14 @@ filter_energy_consumption_activity <- function(
     first_year,
     last_year
     ) {
+
+    df <- df %>% 
+    rename(energy_consumption = final_energy_consumption) %>%
     filter_industry_GVA(
-        df,
         first_year= first_year,
         last_year = last_year
-        )
+        ) %>%
+    rename(final_energy_consumption = energy_consumption)
 }
 
 add_share_sectors <- function(df) {
@@ -772,7 +775,8 @@ apply_LMDI <- function(df) {
 
 generate_country_charts <- function(
     industry_GVA_primary_complete,
-    year_chart,
+    first_year,
+    last_year,
     country_name,
     country_chart,
     output_path) {
@@ -781,7 +785,7 @@ generate_country_charts <- function(
         industry_GVA_primary_complete %>%
         filter(
             geo == country_chart,
-            time <= year_chart
+            time <= last_year
         ) %>%
         mutate(sector = factor(sector, levels = IDA_IND_SECTOR))
 
@@ -1399,7 +1403,6 @@ generate_primary_effects_charts <- function(
     industry_GVA_primary_LMDI,
     country_chart,
     country_name,
-    year_chart,
     first_year,
     last_year,
     first_year_chart,
@@ -1639,14 +1642,14 @@ generate_primary_effects_charts <- function(
 
 generate_coverage_chart <- function(
     industry_GVA_primary_complete,
-    year_chart,
+    last_year_chart,
     output_path) {
     # Data coverage chart
     p <- industry_GVA_primary_complete %>%
         filter(
             sector != "Total",
             geo != "EU27",
-            time <= year_chart
+            time <= last_year_chart
         ) %>%
         select(c("geo", "time", "sector", "primary_energy_consumption", "GVA")) %>%
         replace(is.na(.), 0) %>%

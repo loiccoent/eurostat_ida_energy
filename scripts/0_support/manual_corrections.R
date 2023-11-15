@@ -28,4 +28,4 @@ apply_vkm_corrections <- function(df) {
 }
 
 # Skipped because only data for 2011
-transport_skipped_countries <- c("CY")
+transport_skipped_countries <- c("CY", "EL", "LU", "PT")

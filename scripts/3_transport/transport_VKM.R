@@ -66,7 +66,10 @@ transport_final <- function(
         join_energy_consumption_activity()
 
     # filter out sectors with incomplete data
-    transport_filtered <- filter_energy_consumption_activity(transport_complete)
+    transport_filtered <- filter_energy_consumption_activity(
+        transport_complete,
+        first_year = first_year,
+        last_year = last_year)
     
     # Effects calculation
 
@@ -91,8 +94,6 @@ transport_final <- function(
     }
 
     for (country_chart in countries) {
-        # Skip countries without data
-        if (country_chart %in% transport_skipped_countries) next
 
         # Long name for the country
         country_name <- ifelse(country_chart == "EU27", "EU27", filter(eu27, code == country_chart)$name)
@@ -101,23 +102,6 @@ transport_final <- function(
         # first and last year shown in charts
         first_year_chart <- transport_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- transport_last_year(country = country_chart, final_year = last_year)
-
-        generate_country_charts(
-            transport_complete,
-            year_chart = year_chart,
-            country_name = country_name,
-            country_chart = country_chart,
-            output_path = output_path
-        )
-
-        generate_subsectors_charts(
-            transport_full,
-            country_name = country_name,
-            country_chart = country_chart,
-            first_year_chart = first_year_chart,
-            last_year_chart = last_year_chart,
-            output_path = output_path
-        )
 
         generate_energy_breakdown_charts(
             transport_energy_breakdown,
@@ -128,12 +112,32 @@ transport_final <- function(
             output_path = output_path
         )
 
+        generate_country_charts(
+            transport_complete,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
+
+        # Skip countries without data
+        if (country_chart %in% transport_skipped_countries) next
+
+        generate_subsectors_charts(
+            transport_full,
+            country_name = country_name,
+            country_chart = country_chart,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+        )
+
         # Simple effect decomposition
         generate_final_effects_charts(
             transport_LMDI,
             country_chart = country_chart,
             country_name = country_name,
-            year_chart = year_chart,
             first_year = first_year,
             last_year = last_year,
             first_year_chart = first_year_chart,
@@ -147,7 +151,7 @@ transport_final <- function(
 
         generate_coverage_chart(
             transport_complete,
-            year_chart = year_chart,
+            last_year_chart = last_year_chart,
             output_path = output_path
         )
 
@@ -465,9 +469,48 @@ join_energy_consumption_activity <- function(df) {
         )
 }
 
-filter_energy_consumption_activity <- function(df) {
-    # no need to filter for this decomposition
-    df
+filter_energy_consumption_activity <- function(
+    df,
+    first_year,
+    last_year) {
+    unique_countries <- unique(df$geo)
+    unique_mode <- unique(df$mode)
+
+    for (country in unique_countries) {
+        first_year_shown <- transport_base_year(country = country, first_year = first_year)
+        last_year_shown <- transport_last_year(country = country, final_year = last_year)
+        for (mode in unique_mode) {
+            subset_df <- df[
+                df$geo == country &
+                    df$mode == mode &
+                    df$time <= last_year_shown &
+                    df$time >= first_year_shown,
+            ]
+            # For this decomposition, due to the many gaps, we only remove mode where first or last year are missing
+            if (any((is.na(subset_df$VKM) | subset_df$VKM == 0) & (subset_df$time %in% c(last_year_shown, first_year_shown)))) {
+                missing_years <- subset_df$time[is.na(subset_df$VKM) | subset_df$VKM == 0]
+                df <- df[!(df$geo == country & df$mode == mode), ]
+                message(
+                    paste(
+                        "For country", country, ", the mode", mode,
+                        "was removed (missing VKM in years:",
+                        paste(missing_years, collapse = ", "), ")"
+                    )
+                )
+            } else if (any((is.na(subset_df$energy_consumption) | subset_df$energy_consumption == 0) & (!is.na(subset_df$VKM) & subset_df$VKM != 0) & (subset_df$time %in% c(last_year_shown, first_year_shown)))) {
+                missing_years <- subset_df$time[is.na(subset_df$energy_consumption) | subset_df$energy_consumption == 0]
+                df <- df[!(df$geo == country & df$mode == mode), ]
+                message(
+                    paste(
+                        "For country", country, ", the mode", mode,
+                        "was removed (missing energy consumption in years:",
+                        paste(missing_years, collapse = ", "), ")"
+                    )
+                )
+            }
+        }
+    }
+    return(df)
 }
 
 add_share_sectors <- function(df) {
@@ -630,7 +673,8 @@ apply_LMDI <- function(df) {
 
 generate_country_charts <- function(
     transport_complete,
-    year_chart,
+    first_year,
+    last_year,
     country_name,
     country_chart,
     output_path) {
@@ -908,7 +952,7 @@ generate_subsectors_charts <- function(
     transport_intensity_comparison_data <- transport_full %>%
         filter(
             measure == "intensity",
-            time <= last_year,
+            time <= last_year_chart,
             mode != "Total"
         ) %>%
         select(-c(value_indexed, value_delta)) %>%
@@ -1164,7 +1208,6 @@ generate_final_effects_charts <- function(
     transport_LMDI,
     country_chart,
     country_name,
-    year_chart,
     first_year,
     last_year,
     first_year_chart,
@@ -1174,7 +1217,7 @@ generate_final_effects_charts <- function(
     transport_effects <- transport_LMDI %>%
         filter(
             geo == country_chart,
-            time <= year_chart,
+            time <= last_year_chart,
             time >= first_year_chart
         ) %>%
         rename(
@@ -1416,7 +1459,7 @@ generate_final_effects_charts <- function(
 
 generate_coverage_chart <- function(
     economy_emp_final_complete,
-    year_chart,
+    last_year_chart,
     output_path) {
     # Data coverage chart
     missing_data <- transport_complete %>%

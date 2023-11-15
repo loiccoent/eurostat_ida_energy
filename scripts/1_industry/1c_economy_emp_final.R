@@ -62,7 +62,10 @@ economy_emp_final <- function(
 
 
     # filter out sectors with incomplete data
-    economy_emp_final_filtered <- filter_energy_consumption_activity(economy_emp_final_complete)
+    economy_emp_final_filtered <- filter_energy_consumption_activity(
+        economy_emp_final_complete,
+        first_year = first_year,
+        last_year = last_year)
     
     # Effects calculation
 
@@ -95,9 +98,19 @@ economy_emp_final <- function(
         first_year_chart <- economy_emp_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- economy_emp_last_year(country = country_chart, final_year = last_year)
 
+        generate_energy_breakdown_charts(
+            economy_energy_breakdown,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
+
         generate_country_charts(
             economy_emp_final_complete,
-            year_chart = year_chart,
+            first_year = first_year,
+            last_year = last_year,
             country_name = country_name,
             country_chart = country_chart,
             output_path = output_path
@@ -112,21 +125,11 @@ economy_emp_final <- function(
             output_path = output_path
         )
 
-        generate_energy_breakdown_charts(
-            economy_energy_breakdown,
-            country_chart = country_chart,
-            country_name = country_name,
-            first_year = first_year,
-            last_year = last_year,
-            output_path = output_path
-        )
-
         # Simple effect decomposition
         generate_final_effects_charts(
             economy_emp_final_LMDI,
             country_chart = country_chart,
             country_name = country_name,
-            year_chart = year_chart,
             first_year = first_year,
             last_year = last_year,
             first_year_chart = first_year_chart,
@@ -140,7 +143,7 @@ economy_emp_final <- function(
 
         generate_coverage_chart(
             economy_emp_final_complete,
-            year_chart = year_chart,
+            last_year_chart = last_year_chart,
             output_path = output_path
         )
 
@@ -351,9 +354,47 @@ join_energy_consumption_activity <- function(df) {
         )
 }
 
-filter_energy_consumption_activity <- function(df) {
-    # no need to filter for this decomposition
-    df
+filter_energy_consumption_activity <- function(
+    df,
+    first_year,
+    last_year) {
+    unique_countries <- unique(df$geo)
+    unique_sectors <- unique(df$sector)
+
+    for (country in unique_countries) {
+        first_year_shown <- economy_emp_base_year(country = country, first_year = first_year)
+        last_year_shown <- economy_emp_last_year(country = country, final_year = last_year)
+        for (sector in unique_sectors) {
+            subset_df <- df[
+                df$geo == country &
+                    df$sector == sector &
+                    df$time <= last_year_shown &
+                    df$time >= first_year_shown,
+            ]
+            if (any(is.na(subset_df$employment) | subset_df$employment == 0)) {
+                missing_years <- subset_df$time[is.na(subset_df$employment) | subset_df$employment == 0]
+                df <- df[!(df$geo == country & df$sector == sector), ]
+                message(
+                    paste(
+                        "For country", country, ", the sector", sector,
+                        "was removed (missing employment in years:",
+                        paste(missing_years, collapse = ", "), ")"
+                    )
+                )
+            } else if (any((is.na(subset_df$energy_consumption) | subset_df$energy_consumption == 0) & (!is.na(subset_df$employment) & subset_df$employment != 0))) {
+                missing_years <- subset_df$time[is.na(subset_df$energy_consumption) | subset_df$energy_consumption == 0]
+                df <- df[!(df$geo == country & df$sector == sector), ]
+                message(
+                    paste(
+                        "For country", country, ", the sector", sector,
+                        "was removed (missing energy consumption in years:",
+                        paste(missing_years, collapse = ", "), ")"
+                    )
+                )
+            }
+        }
+    }
+    return(df)
 }
 
 add_share_sectors <- function(df) {
@@ -519,7 +560,8 @@ apply_LMDI <- function(df) {
 
 generate_country_charts <- function(
     economy_emp_final_complete,
-    year_chart,
+    first_year,
+    last_year,
     country_name,
     country_chart,
     output_path) {
@@ -528,7 +570,7 @@ generate_country_charts <- function(
         economy_emp_final_complete %>%
         filter(
             geo == country_chart,
-            time <= year_chart
+            time <= last_year
         ) %>%
         mutate(sector = factor(sector, levels = IDA_ECO_SECTORS))
 
@@ -675,7 +717,7 @@ generate_country_charts <- function(
     economy_emp_final_intensity_comparison_sector <-
         economy_emp_final_complete %>%
         mutate(sector = factor(sector, levels = IDA_ECO_SECTORS)) %>%
-        filter(time <= year_chart) %>%
+        filter(time <= last_year) %>%
         select(-c(
             employment, energy_consumption,
             total_energy_consumption, total_employment,
@@ -878,7 +920,7 @@ generate_subsectors_charts <- function(
         economy_emp_final_full %>%
         filter(
             measure == "intensity",
-            time <= year_chart,
+            time <= last_year,
             sector == "Total"
         ) %>%
         select(-c(value_indexed, value_delta)) %>%
@@ -1057,7 +1099,6 @@ generate_final_effects_charts <- function(
     economy_emp_final_LMDI,
     country_chart,
     country_name,
-    year_chart,
     first_year,
     last_year,
     first_year_chart,
@@ -1305,14 +1346,14 @@ generate_final_effects_charts <- function(
 
 generate_coverage_chart <- function(
     economy_emp_final_complete,
-    year_chart,
+    last_year_chart,
     output_path) {
     # Data coverage chart
     missing_data <- economy_emp_final_complete %>%
         filter(
             sector != "Total",
             geo != "EU27",
-            time <= year_chart
+            time <= last_year_chart
         ) %>%
         select(c("geo", "time", "sector", "energy_consumption", "employment")) %>%
         replace(is.na(.), 0) %>%

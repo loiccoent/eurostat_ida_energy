@@ -99,10 +99,19 @@ household_final <- function(
         first_year_chart <- household_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- household_last_year(country = country_chart, final_year = last_year)
 
+        generate_energy_breakdown_charts(
+            HH_energy_breakdown,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
 
         generate_country_charts(
             HH,
-            year_chart = year_chart,
+            first_year = first_year,
+            last_year = last_year,
             country_name = country_name,
             country_chart = country_chart,
             output_path = output_path
@@ -126,21 +135,11 @@ household_final <- function(
             output_path = output_path
         )
 
-        generate_energy_breakdown_charts(
-            HH_energy_breakdown,
-            country_chart = country_chart,
-            country_name = country_name,
-            first_year = first_year,
-            last_year = last_year,
-            output_path = output_path
-        )
-
         # Simple effect decomposition
         generate_final_effects_charts(
             HH_LMDI,
             country_chart = country_chart,
             country_name = country_name,
-            year_chart = year_chart,
             first_year = first_year,
             last_year = last_year,
             first_year_chart = first_year_chart,
@@ -154,7 +153,7 @@ household_final <- function(
 
         generate_coverage_chart(
             HH_augmented,
-            year_chart = year_chart,
+            last_year_chart = last_year_chart,
             output_path = output_path
         )
 
@@ -991,7 +990,8 @@ generate_energy_breakdown_charts <- function(
 
 generate_country_charts <- function(
     HH,
-    year_chart,
+    first_year,
+    last_year,
     country_name,
     country_chart,
     output_path) {
@@ -1126,7 +1126,6 @@ generate_final_effects_charts <- function(
     HH_LMDI,
     country_chart,
     country_name,
-    year_chart,
     first_year,
     last_year,
     first_year_chart,
@@ -1409,7 +1408,7 @@ generate_final_effects_charts <- function(
 
 generate_coverage_chart <- function(
     HH_augmented,
-    year_chart,
+    last_year_chart,
     output_path) {
     # Data coverage chart
     missing_data <- HH_augmented %>%

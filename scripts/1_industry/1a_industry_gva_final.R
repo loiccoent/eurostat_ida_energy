@@ -99,11 +99,21 @@ industry_GVA_final <- function(
         first_year_chart <- industry_GVA_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- industry_GVA_last_year(country = country_chart, final_year = last_year)
 
+        generate_energy_breakdown_charts(
+            industry_energy_breakdown,
+            country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
+            output_path = output_path
+        )
+
         generate_country_charts(
             industry_GVA_final_complete,
-            year_chart = year_chart,
-            country_name = country_name,
             country_chart = country_chart,
+            country_name = country_name,
+            first_year = first_year,
+            last_year = last_year,
             output_path = output_path
         )
 
@@ -116,21 +126,11 @@ industry_GVA_final <- function(
             output_path = output_path
         )
 
-        generate_energy_breakdown_charts(
-            industry_energy_breakdown,
-            country_chart = country_chart,
-            country_name = country_name,
-            first_year = first_year,
-            last_year = last_year,
-            output_path = output_path
-        )
-
         # Simple effect decomposition
         generate_final_effects_charts(
             industry_GVA_final_LMDI,
             country_chart = country_chart,
             country_name = country_name,
-            year_chart = year_chart,
             first_year = first_year,
             last_year = last_year,
             first_year_chart = first_year_chart,
@@ -144,7 +144,7 @@ industry_GVA_final <- function(
 
         generate_coverage_chart(
             industry_GVA_final_complete,
-            year_chart = year_chart,
+            last_year_chart = last_year_chart,
             output_path = output_path
         )
 
@@ -405,7 +405,8 @@ apply_LMDI <- function(df) {
 
 generate_country_charts <- function(
     industry_GVA_final_complete,
-    year_chart,
+    first_year,
+    last_year,
     country_name,
     country_chart,
     output_path) {
@@ -414,7 +415,7 @@ generate_country_charts <- function(
         industry_GVA_final_complete %>%
         filter(
             geo == country_chart,
-            time <= year_chart
+            time <= last_year
         ) %>%
         mutate(sector = factor(sector, levels = IDA_IND_SECTOR))
 
@@ -575,7 +576,7 @@ generate_country_charts <- function(
     industry_GVA_final_intensity_comparison_sector <-
         industry_GVA_final_complete %>%
         mutate(sector = factor(sector, levels = IDA_IND_SECTOR)) %>%
-        filter(time <= year_chart) %>%
+        filter(time <= last_year) %>%
         select(-c(
             GVA, energy_consumption,
             total_energy_consumption, total_GVA,
@@ -792,7 +793,7 @@ generate_subsectors_charts <- function(
         industry_GVA_final_full %>%
         filter(
             measure == "intensity",
-            time <= year_chart,
+            time <= last_year_chart,
             sector == "Total"
         ) %>%
         select(-c(value_indexed, value_delta)) %>%
@@ -985,7 +986,6 @@ generate_final_effects_charts <- function(
     industry_GVA_final_LMDI,
     country_chart,
     country_name,
-    year_chart,
     first_year,
     last_year,
     first_year_chart,
@@ -995,7 +995,7 @@ generate_final_effects_charts <- function(
     industry_GVA_final_effects <- industry_GVA_final_LMDI %>%
         filter(
             geo == country_chart,
-            time <= year_chart,
+            time <= last_year_chart,
             time >= first_year_chart
         ) %>%
         rename(
@@ -1015,7 +1015,7 @@ generate_final_effects_charts <- function(
     industry_GVA_final_results <- industry_GVA_final_LMDI %>%
         filter(
             geo == country_chart,
-            time <= year_chart
+            time <= last_year_chart
         ) %>%
         pivot_longer(
             cols = -c(geo, time),
@@ -1234,14 +1234,14 @@ generate_final_effects_charts <- function(
 
 generate_coverage_chart <- function(
     industry_GVA_final_complete,
-    year_chart,
+    last_year_chart,
     output_path) {
     # Data coverage chart
     missing_data <- industry_GVA_final_complete %>%
         filter(
             sector != "Total",
             geo != "EU27",
-            time <= year_chart
+            time <= last_year_chart
         ) %>%
         select(c("geo", "time", "sector", "energy_consumption", "GVA")) %>%
         replace(is.na(.), 0) %>%
