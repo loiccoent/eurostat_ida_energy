@@ -1,8 +1,11 @@
+# FUNCTIONS CALLED BY DIFFERENT PROCESSES
+library(futile.logger)
+
 reverse_negative_gva <- function(df) {
     for (i in 1:nrow(df)) {
         if (!is.na(df$GVA[i]) && df$GVA[i] < 0) {
             df$GVA[i] <- -df$GVA[i]
-            message(paste(df$geo[i], " ", df$time[i], " ", df$sector[i], " - ", "negative GVA reversed"))
+            flog.warn(paste("Country:", df$geo[i], ", Sector:", df$sector[i], ", Year:", df$time[i], " - ", "negative GVA reversed"))
         }
     }
     return(df)
@@ -21,27 +24,27 @@ filter_industry_GVA <- function(
         for (sector in unique_sectors) {
             subset_df <- df[
                 df$geo == country &
-                df$sector == sector &
-                df$time <= last_year_shown &
-                df$time >= first_year_shown,
+                    df$sector == sector &
+                    df$time <= last_year_shown &
+                    df$time >= first_year_shown,
             ]
             if (any(is.na(subset_df$GVA) | subset_df$GVA == 0)) {
                 missing_years <- subset_df$time[is.na(subset_df$GVA) | subset_df$GVA == 0]
                 df <- df[!(df$geo == country & df$sector == sector), ]
-                message(
+                flog.warn(
                     paste(
-                        "For country", country, ", the sector", sector,
-                        "was removed (missing GVA in years:",
+                        "Country:", country, ", Sector:", sector,
+                        "- removed (missing GVA in years:",
                         paste(missing_years, collapse = ", "), ")"
                     )
                 )
             } else if (any((is.na(subset_df$energy_consumption) | subset_df$energy_consumption == 0) & (!is.na(subset_df$GVA) & subset_df$GVA != 0))) {
                 missing_years <- subset_df$time[is.na(subset_df$energy_consumption) | subset_df$energy_consumption == 0]
                 df <- df[!(df$geo == country & df$sector == sector), ]
-                message(
+                flog.warn(
                     paste(
-                        "For country", country, ", the sector", sector,
-                        "was removed (missing energy consumption in years:",
+                        "Country:", country, ", Sector:", sector,
+                        "- removed (missing energy consumption in years:",
                         paste(missing_years, collapse = ", "), ")"
                     )
                 )

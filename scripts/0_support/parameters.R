@@ -11,7 +11,6 @@ geo_codes <- eu27$code %>% append("EU27")
 
 first_year <- as.double(config$year$first)
 last_year <- as.double(config$year$last)
-year_chart <- as.double(config$year$chart)
 country <- config$country
 
 # Actions

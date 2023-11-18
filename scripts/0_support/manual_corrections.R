@@ -8,8 +8,7 @@ apply_gva_corrections <- function(df) {
 			(geo == "AT" & sector == "Coke and ref. pet. products" & time == 2014) ~ GVA * 100,
 			TRUE ~ GVA
 		))
-
-	message("AT 2013, 2014 Coke and ref. pet. products GVA manual correction")
+	flog.warn(paste("Country:", "AT", ", Sector:", "Coke and ref. pet. products", ", Year:", "2013, 2014", " - ", "GVA manual correction"))
 
 	df
 }
@@ -22,7 +21,7 @@ apply_vkm_corrections <- function(df) {
 			TRUE ~ VKM
 		))
 
-	print("BG 2010 road traffic manual correction")
+	flog.warn(paste("Country:", "BG", ", Sector:", "Road", ", Year:", "2010", " - ", "Traffic manual correction"))
 
 	df
 }

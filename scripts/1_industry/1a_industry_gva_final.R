@@ -1,5 +1,9 @@
 library(fs)
+library(tidyverse)
 library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(futile.logger)
 # FINAL ENERGY CONSUMPTION IN INDUSTRY
 source(path(getwd(), "scripts/0_support/print_charts.R"))
 source(path(getwd(), "scripts/0_support/year_selection.R"))
@@ -16,6 +20,7 @@ industry_GVA_final <- function(
     country,
     data_path,
     chart_path) {
+    flog.info("Prepare the data for final energy consumption in industry (gva based) decomposition (all countries)")
 
     # Define the list as the whole list
     country_list <- geo_codes
@@ -31,11 +36,11 @@ industry_GVA_final <- function(
     # Energy consumption by fuel
     industry_energy_breakdown <- prepare_energy_product_breakdown(
         # take industry end uses
-        nrg_bal_c %>% filter(nrg_bal %in% NRG_IND_SECTORS) ,
+        nrg_bal_c %>% filter(nrg_bal %in% NRG_IND_SECTORS),
         first_year = first_year,
         last_year = last_year,
         country_list = country_list
-    ) 
+    )
 
     # energy consumption (and supply) from the energy balance (nrg_bal_c)
     industry_energy_final <- prepare_energy_consumption(
@@ -59,15 +64,15 @@ industry_GVA_final <- function(
         industry_energy_final,
         by = c("geo", "time", "sector")
     ) %>%
-    join_energy_consumption_activity()
+        join_energy_consumption_activity()
 
     # filter out sectors with incomplete data
     industry_GVA_final_filtered <- filter_energy_consumption_activity(
         industry_GVA_final_complete,
-        first_year= first_year,
+        first_year = first_year,
         last_year = last_year
-        )
-    
+    )
+
     # Effects calculation
 
     # calculate the required indicators for the 3 effects
@@ -78,7 +83,7 @@ industry_GVA_final <- function(
     industry_GVA_final_full <- industry_GVA_final_augmented %>%
         rbind(industry_GVA_final_total) %>%
         add_index_delta()
-    
+
     # Calculate the effects using the LMDI formulas
     industry_GVA_final_LMDI <- apply_LMDI(industry_GVA_final_full)
 
@@ -99,60 +104,105 @@ industry_GVA_final <- function(
         first_year_chart <- industry_GVA_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- industry_GVA_last_year(country = country_chart, final_year = last_year)
 
-        generate_energy_breakdown_charts(
-            industry_energy_breakdown,
-            country_chart = country_chart,
-            country_name = country_name,
-            first_year = first_year,
-            last_year = last_year,
-            output_path = output_path
+        flog.info(paste("Prepare the charts for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
+        flog.info(paste("Saved in", output_path))
+
+        tryCatch(
+            {
+                generate_energy_breakdown_charts(
+                    industry_energy_breakdown,
+                    country_chart = country_chart,
+                    country_name = country_name,
+                    first_year = first_year,
+                    last_year = last_year,
+                    output_path = output_path
+                )
+            },
+            error = function(e) {
+                flog.error("Error preparing energy beakdown charts: ", e)
+            }
         )
 
-        generate_country_charts(
-            industry_GVA_final_complete,
-            country_chart = country_chart,
-            country_name = country_name,
-            first_year = first_year,
-            last_year = last_year,
-            output_path = output_path
+        tryCatch(
+            {
+                generate_country_charts(
+                    industry_GVA_final_complete,
+                    country_chart = country_chart,
+                    country_name = country_name,
+                    first_year = first_year,
+                    last_year = last_year,
+                    output_path = output_path
+                )
+            },
+            error = function(e) {
+                flog.error("Error preparing country charts: ", e)
+            }
         )
 
-        generate_subsectors_charts(
-            industry_GVA_final_full,
-            country_name = country_name,
-            country_chart = country_chart,
-            first_year_chart = first_year_chart,
-            last_year_chart = last_year_chart,
-            output_path = output_path
+        tryCatch(
+            {
+                generate_subsectors_charts(
+                    industry_GVA_final_full,
+                    country_name = country_name,
+                    country_chart = country_chart,
+                    first_year_chart = first_year_chart,
+                    last_year_chart = last_year_chart,
+                    output_path = output_path
+                )
+            },
+            error = function(e) {
+                flog.error("Error preparing subsector charts: ", e)
+            }
         )
 
-        # Simple effect decomposition
-        generate_final_effects_charts(
-            industry_GVA_final_LMDI,
-            country_chart = country_chart,
-            country_name = country_name,
-            first_year = first_year,
-            last_year = last_year,
-            first_year_chart = first_year_chart,
-            last_year_chart = last_year_chart,
-            output_path = output_path
+        tryCatch(
+            {
+                # Simple effect decomposition
+                generate_final_effects_charts(
+                    industry_GVA_final_LMDI,
+                    country_chart = country_chart,
+                    country_name = country_name,
+                    first_year = first_year,
+                    last_year = last_year,
+                    first_year_chart = first_year_chart,
+                    last_year_chart = last_year_chart,
+                    output_path = output_path
+                )
+            },
+            error = function(e) {
+                flog.error("Error preparing final effects charts: ", e)
+            }
         )
     }
-
     if (country == "EU27") {
         output_path <- paste0(chart_path, "/EU27/")
+        flog.info(paste("Prepare the charts for EU27 (", first_year_chart, "-", last_year_chart, ")"))
+        flog.info(paste("Saved in", output_path))
 
-        generate_coverage_chart(
-            industry_GVA_final_complete,
-            last_year_chart = last_year_chart,
-            output_path = output_path
+        tryCatch(
+            {
+                generate_coverage_chart(
+                    industry_GVA_final_complete,
+                    last_year_chart = last_year_chart,
+                    output_path = output_path
+                )
+            },
+            error = function(e) {
+                flog.error("Error preparing coverage charts: ", e)
+            }
         )
-
-        generate_eu_comparison_chart(
-            industry_GVA_final_full,
-            first_year_chart = first_year_chart,
-            last_year_chart = last_year_chart,
-            output_path = output_path
+        tryCatch(
+            {
+                generate_eu_comparison_chart(
+                    industry_GVA_final_full,
+                    first_year_chart = first_year_chart,
+                    last_year_chart = last_year_chart,
+                    output_path = output_path
+                )
+            },
+            error = function(e) {
+                flog.error("Error preparing eu comparison charts: ", e)
+            }
         )
     }
 }
@@ -168,30 +218,30 @@ prepare_energy_consumption <- function(
         last_year = last_year,
         country_list = country_list
     ) %>%
-    filter(siec == "TOTAL") %>%
-    select(-c(siec)) %>%
-    # reshape to long
-    pivot_longer(
-        cols = -c(geo, time),
-        names_to = "sector",
-        values_to = "energy_consumption"
-    )
+        filter(siec == "TOTAL") %>%
+        select(-c(siec)) %>%
+        # reshape to long
+        pivot_longer(
+            cols = -c(geo, time),
+            names_to = "sector",
+            values_to = "energy_consumption"
+        )
 }
 
 prepare_activity <- function(
     nama_10_a64,
     first_year,
     last_year,
-    country_list){
-        prepare_industry_GVA(
-            nama_10_a64,
-            first_year = first_year,
-            last_year = last_year,
-            country_list = country_list
-        ) %>%
-    apply_gva_corrections() %>%
-	reverse_negative_gva()
-    }
+    country_list) {
+    prepare_industry_GVA(
+        nama_10_a64,
+        first_year = first_year,
+        last_year = last_year,
+        country_list = country_list
+    ) %>%
+        apply_gva_corrections() %>%
+        reverse_negative_gva()
+}
 
 join_energy_consumption_activity <- function(df) {
     df %>%
@@ -258,9 +308,10 @@ filter_energy_consumption_activity <- function(
     first_year,
     last_year) {
     filter_industry_GVA(
-        df,         
-        first_year= first_year,
-        last_year = last_year)
+        df,
+        first_year = first_year,
+        last_year = last_year
+    )
 }
 
 add_total_sectors <- function(df) {
@@ -285,7 +336,7 @@ add_index_delta <- function(df) {
                 (GVA == 0 & energy_consumption > 0) ~ NA_real_,
                 (GVA == 0 & energy_consumption == 0) ~ 0,
                 TRUE ~ energy_consumption / GVA
-                )
+            )
         ) %>%
         pivot_longer(
             cols = -c(geo, time, sector),
@@ -683,14 +734,14 @@ generate_subsectors_charts <- function(
     first_year_chart,
     last_year_chart,
     output_path) {
-        # full data (after filtering)
-        industry_GVA_final_subsector <-
-            industry_GVA_final_full %>%
-            filter(
-                geo == country_chart,
-                time >= first_year_chart,
-                time <= last_year_chart
-            )
+    # full data (after filtering)
+    industry_GVA_final_subsector <-
+        industry_GVA_final_full %>%
+        filter(
+            geo == country_chart,
+            time >= first_year_chart,
+            time <= last_year_chart
+        )
 
     # Chart indexed variation of total industry
     industry_GVA_final_country_indexed <-
