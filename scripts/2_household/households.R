@@ -1,5 +1,9 @@
 library(fs)
+library(tidyverse)
 library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(futile.logger)
 # ENERGY CONSUMPTION IN RESIDENTIAL SECTOR
 source(path(getwd(), "scripts/0_support/print_charts.R"))
 source(path(getwd(), "scripts/0_support/year_selection.R"))
@@ -16,6 +20,7 @@ household_final <- function(
     country,
     data_path,
     chart_path) {
+        flog.info("Prepare the data for residential energy consumption decomposition (all countries)")
     # Define the list as the whole list
     country_list <- geo_codes
 
@@ -99,6 +104,11 @@ household_final <- function(
         first_year_chart <- household_base_year(country = country_chart, first_year = first_year)
         last_year_chart <- household_last_year(country = country_chart, final_year = last_year)
 
+        flog.info(paste("Prepare the charts for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
+        flog.info(paste("Saved in", output_path))
+
+    tryCatch(
+      {
         generate_energy_breakdown_charts(
             HH_energy_breakdown,
             country_chart = country_chart,
@@ -107,7 +117,13 @@ household_final <- function(
             last_year = last_year,
             output_path = output_path
         )
-
+        },
+      error = function(e) {
+        flog.error("Error preparing energy beakdown charts: ", e)
+      }
+    )
+    tryCatch(
+      {
         generate_country_charts(
             HH,
             first_year = first_year,
@@ -116,7 +132,14 @@ household_final <- function(
             country_chart = country_chart,
             output_path = output_path
         )
+        },
+      error = function(e) {
+        flog.error("Error preparing country charts: ", e)
+      }
+    )
 
+    tryCatch(
+      {
         generate_household_energy_charts(
             HH_augmented,
             country_name = country_name,
@@ -125,7 +148,13 @@ household_final <- function(
             last_year = last_year,
             output_path = output_path
         )
-
+        },
+      error = function(e) {
+        flog.error("Error preparing household energy charts: ", e)
+      }
+    )
+    tryCatch(
+      {
         generate_subsectors_charts(
             HH_full,
             country_name = country_name,
@@ -134,7 +163,13 @@ household_final <- function(
             last_year_chart = last_year_chart,
             output_path = output_path
         )
-
+        },
+      error = function(e) {
+        flog.error("Error preparing subsector charts: ", e)
+      }
+    )
+    tryCatch(
+      {
         # Simple effect decomposition
         generate_final_effects_charts(
             HH_LMDI,
@@ -146,23 +181,42 @@ household_final <- function(
             last_year_chart = last_year_chart,
             output_path = output_path
         )
+        },
+      error = function(e) {
+        flog.error("Error preparing final effects charts: ", e)
+      }
+    )
     }
 
     if (country == "EU27") {
         output_path <- paste0(chart_path, "/EU27/")
-
+        flog.info(paste("Prepare the charts for EU27 (", first_year_chart, "-", last_year_chart, ")"))
+        flog.info(paste("Saved in", output_path))
+    tryCatch(
+      {
         generate_coverage_chart(
             HH_augmented,
             last_year_chart = last_year_chart,
             output_path = output_path
         )
-
+        },
+      error = function(e) {
+        flog.error("Error preparing coverage charts: ", e)
+      }
+    )
+    tryCatch(
+      {
         generate_eu_comparison_chart(
             HH_augmented,
             first_year_chart = first_year_chart,
             last_year_chart = last_year_chart,
             output_path = output_path
         )
+        },
+      error = function(e) {
+        flog.error("Error preparing eu comparison charts: ", e)
+      }
+    )
     }
 }
 

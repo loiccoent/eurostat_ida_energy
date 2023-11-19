@@ -30,7 +30,7 @@
     - transport_VKM.R: Decomposition of final energy consumption in transport sector
 - 4_all_sectors
     - full_energy.R: Charts for energy consumption in the different sectors
-    - shared.R: Functions shared across seceral decomposition
+    - shared.R: Functions shared across several decomposition
 - Run.R: main script, calls all of the functions above
 - config.yml: configuration file where the user can select the decomposition he wants to run, and for which country
 - REAME.md: the file you are reading
@@ -54,7 +54,9 @@ and in the residential sector decomposition due to the higher number of effects)
         - Joining the two datasets (by country, year and end use)
         - Filter out sectors with incomplete data
     - EFFECTS CALCULATION:
-        - Calculate the required indicators (share, totals, indexed and differenced data) for the calculation
+        - Calculate the required indicators for the calculation:
+            - Recalculate total and shares after filtering
+            - Calculate indexed and differenced data
         - Calculate the 3 _(or more)_ effects using the LMDI formulas
     - CHARTS: 
         - either loop over all countries **("all")** or only the country selected, and for each country retrieve:
@@ -69,7 +71,18 @@ and in the residential sector decomposition due to the higher number of effects)
         - if running *"EU27"*, generate:
             - coverage_chart _(number of sector missing for country)_
             - comparison chart _(comparison of intensity effect between EU countries)_
-- SUPPORT FUNCTIONS: all of the functions called above are either found below, or if they belong to several decomposition, in the shared.R file
+- SUPPORT FUNCTIONS: all of the functions called by the decomposition scipts are either found below, or if they belong to several decomposition, in the shared.R file. Important functions include:
+    - reverse_negative_gva: detects where gva is negative and reverse it (unusable with the decomposition). The country, sector and year is logged to console, for investigation
+    - filter_sectors (e.g. filter_industry_gva). Detects sectors for which, for a year at least, either activity is missing or there is no energy consumption despite some activity reported. If so, excludes the sector for the entire series (check sectors for specificities, due to the number of missing data, the transport sector rule is different and only checks the first and last year)
+
+### Logging
+Logging to console is used through the process to inform the user of the coming operations (flag INFO), of data exclusion (flag WARN) and of potential erros (flag ERROR). This logs should be checked as part of the output to ensure the process ran as expected
+
+### Error handling
+Error handling has been implemented to facilate use of the project. In summary, in case of error, the process will attempt to resume to next where possible. Based on the structure above it can be seen that:
+- If one of the chart function does not go through, an error will be printed to console and the next chart function in the current decomposition (if any) will start.
+- If the error occur in the data preparation, the error will be caught at the higher level, because the chart cannot be generated without the base data. In consequence, an error will be printed to console and the next decomposition script (if any) will be triggered.
+
 
 ## For future cycles
 
@@ -80,10 +93,11 @@ If you want to potentially keep this data, store it in a subfolder for instance.
 ### Corrections
 In the future cycles, you may have to update some of the corrections and filter to handle data issues, they can be found in:
     -  manual_corrections.R: 
-        -  to exclude specific sectors where activity is available and not energy consumption, or vice- versa
-        -  to correct specific values (wrong units, negatives)
+        - to correct specific values (e.g. wrong units)
+        - to	to check if previous corrections are still valid
     -  year_selection.R: to select the first and last year, considering they should contain only complete sectors (activity and energy)
-When facing a data issue, there is always a trade off between excluding a sector from the decomposition or reducing the year coverage to exclude the problematic years.
+    
+When test running for a new year, it is possible the process will exclude a very high amount of sector due to missing activity data on the last year. Depending on the number of sectors involved, there is always a trade off between excluding the sectors from the decomposition or shorten the year coverage for the given country.
 
 
 
