@@ -1,9 +1,18 @@
 # Indexed decomposition analysis of energy consumption for different sectors of the economy
 
-## Organisation
+## Introduction
+The tool described here is the last deliverable in the Eurostat project “energy consumption decomposition analysis”. It consists in a series of scripts written In the R language, which allow the user to download the data, perform the calculations and generate charts and numerical outputs linked to the different decompositions that have been presented during the project. More precisely, 5 main decompositions have been introduced: 
+- decomposition of the final energy consumption in the industry sector, based on value-added.
+- decomposition of the primary energy consumption in the industry sector, based on value-added.
+- decomposition of the final energy consumption in the different economy sector, based on employment.
+- decomposition of the final energy consumption in the residential sector.
+- decomposition of the final energy consumption in the industry sector, based on traffic.
+The document will succinctly describe how the project is organized, how the different operations are run, and how the user should maintain the different parts in order to use it again for future cycles of data collection.
+
+## Project organisation
 ### Data:
-- raw: where the data extracted from Eurostat is stored as .rda data file
-- output: Where the charts and csv data will be stored after processing
+- raw: where the data extracted from Eurostat is stored as .rda data file (filled by the data_download.R script)
+- output: Where the charts and csv data are be stored after processing 
     - AT: country folder (receives charts (.jpg) and tables (.csv))
     - BE
     - ...
