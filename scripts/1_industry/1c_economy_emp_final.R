@@ -5,7 +5,7 @@ library(dplyr)
 library(ggplot2)
 library(futile.logger)
 # FINAL ENERGY CONSUMPTION IN ECONOMY
-source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/outputs.R"))
 source(path(getwd(), "scripts/0_support/year_selection.R"))
 source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
 source(path(getwd(), "scripts/0_support/mapping_products.R"))
@@ -104,7 +104,7 @@ economy_emp_final <- function(
     first_year_chart <- economy_emp_base_year(country = country_chart, first_year = first_year)
     last_year_chart <- economy_emp_last_year(country = country_chart, final_year = last_year)
 
-    flog.info(paste("Prepare the charts for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
+    flog.info(paste("Prepare the charts and data for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
     flog.info(paste("Saved in", output_path))
 
     tryCatch(
@@ -173,38 +173,37 @@ economy_emp_final <- function(
         flog.error("Error preparing final effects charts: ", e)
       }
     )
-  }
 
-  if (country == "EU27") {
-    output_path <- paste0(chart_path, "/EU27/")
-    flog.info(paste("Prepare the charts for EU27 (", first_year_chart, "-", last_year_chart, ")"))
-    flog.info(paste("Saved in", output_path))
+    if (country_chart == "EU27") {
+      output_path <- paste0(chart_path, "/EU27/")
+      flog.info(paste("Additional charts and data for EU27 (", first_year_chart, "-", last_year_chart, ")"))
 
-    tryCatch(
-      {
-        generate_coverage_chart(
-          economy_emp_final_complete,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing coverage charts: ", e)
-      }
-    )
-    tryCatch(
-      {
-        generate_eu_comparison_chart(
-          economy_emp_final_full,
-          first_year_chart = first_year_chart,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing eu comparison charts: ", e)
-      }
-    )
+      tryCatch(
+        {
+          generate_coverage_chart(
+            economy_emp_final_complete,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing coverage charts: ", e)
+        }
+      )
+      tryCatch(
+        {
+          generate_eu_comparison_chart(
+            economy_emp_final_full,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing eu comparison charts: ", e)
+        }
+      )
+    }
   }
 }
 
@@ -481,7 +480,8 @@ add_total_sectors <- function(df) {
       energy_consumption = sum(energy_consumption, na.rm = TRUE),
       # the sum of shares should be one, calculated here for checking
       share_employment = sum(share_employment, na.rm = TRUE),
-      share_energy_consumption = sum(share_energy_consumption, na.rm = TRUE)
+      share_energy_consumption = sum(share_energy_consumption, na.rm = TRUE),
+      .groups = "drop_last"
     ) %>%
     ungroup() %>%
     mutate(sector = "Total")
@@ -592,7 +592,8 @@ apply_LMDI <- function(df) {
       # By keeping the mean figure when only one exist across all subsectors
       energy_consumption_var_obs = mean(value_delta_energy_consumption_total),
       value_energy_consumption_total_baseline = mean(value_energy_consumption_total_baseline),
-      value_energy_consumption_total_end = mean(value_energy_consumption_total_end)
+      value_energy_consumption_total_end = mean(value_energy_consumption_total_end),
+      .groups = "drop_last"
     ) %>%
     ungroup() %>%
     # For checking purposes, recalculate the total energy consumption calculated as the sum of the effects
@@ -634,7 +635,11 @@ generate_country_charts <- function(
       share_energy_consumption = round(share_energy_consumption, 2)
     )
 
-  write.csv(table_economy_emp_final_country_data, paste0(output_path, "Part3_sector.csv"), row.names = FALSE)
+  save_data(
+    table_economy_emp_final_country_data,
+    filename="Part3_sector.csv",
+    output_path=output_path
+  )
 
   # Energy consumption by subsector
 
@@ -1075,7 +1080,11 @@ generate_energy_breakdown_charts <- function(
       share_energy_consumption = round(share_energy_consumption, 3)
     )
 
-  write.csv(table_economy_energy_breakdown_filtered, paste0(output_path, "Part3_fuel.csv"), row.names = FALSE)
+  save_data(
+    table_economy_energy_breakdown_filtered,
+    filename="Part3_fuel.csv",
+    output_path=output_path
+  )
 
   # Final energy consumption by fuel
 
@@ -1270,9 +1279,10 @@ generate_final_effects_charts <- function(
       )
     )
 
-  write.csv(economy_emp_final_Waterfall_data,
-    paste0(output_path, "Part3_waterfall.csv"),
-    row.names = FALSE
+  save_data(
+    economy_emp_final_Waterfall_data,
+    filename="Part3_waterfall.csv",
+    output_path=output_path
   )
 
   p <- economy_emp_final_Waterfall_data %>%
@@ -1290,8 +1300,8 @@ generate_final_effects_charts <- function(
       text = element_text(size = 15)
     ) +
     scale_y_continuous(labels = scales::number) +
-    ylab("Energy consumption level and effect (PJ)") +
-    scale_x_discrete(labels = levels_waterfall)
+    ylab("Energy consumption level and effect (PJ)") #+
+    #scale_x_discrete(labels = levels_waterfall)
 
   print_chart(p,
     filename = paste0(country_chart, "_Figure17.jpg"),
@@ -1334,9 +1344,10 @@ generate_final_effects_charts <- function(
     )) %>%
     arrange(measure)
 
-  write.csv(economy_emp_final_intensity_effect,
-    paste0(output_path, "Part3_intensity_effect.csv"),
-    row.names = FALSE
+  save_data(
+    economy_emp_final_intensity_effect,
+    filename="Part3_intensity_effect.csv",
+    output_path=output_path
   )
 
   # Plot the intensity effect as area chart
@@ -1418,11 +1429,16 @@ generate_coverage_chart <- function(
     ) %>%
     select(-c("energy_consumption", "employment")) %>%
     group_by(geo, time) %>%
-    summarize(missing = sum(missing))
+    summarize(
+      missing = sum(missing), 
+      .groups = "drop_last"
+      ) %>% 
+      ungroup()
 
-  write.csv(missing_data,
-    paste0(output_path, "Part2_missing_data.csv"),
-    row.names = FALSE
+  save_data(
+    missing_data,
+    filename="Part3_missing_data.csv",
+    output_path=output_path
   )
 
   p <- missing_data %>%
@@ -1474,9 +1490,10 @@ generate_eu_comparison_chart <- function(
     merge(eu_countries, by.x = "geo", by.y = "code") %>%
     select(-c("geo", "label"))
 
-  write.csv(EU_comparison,
-    paste0(output_path, "Part2_EU27.csv"),
-    row.names = FALSE
+  save_data(
+    EU_comparison,
+    filename="Part3_EU27.csv",
+    output_path=output_path
   )
 
   # Rank the countries by intensity on last year

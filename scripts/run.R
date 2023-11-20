@@ -32,7 +32,6 @@ library(waterfalls)
 library("ggpubr")
 
 rm()
-options(warn = -1)
 setwd(path(here()))
 # Source parameters
 source(path(getwd(), "scripts/0_support/parameters.R"))
@@ -73,7 +72,7 @@ if (download) {
 }
 # If requested, clean the folder first
 if (clear) {
-  source(path(getwd(), "scripts/0_support/clear_folders.R"))
+  source(path(getwd(), "scripts/0_support/folders_management.R"))
   clear_all(country, output_path)
 }
 # If requested, calculate all the required indicators, Generate the charts by country

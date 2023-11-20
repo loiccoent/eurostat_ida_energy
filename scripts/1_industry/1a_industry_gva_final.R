@@ -5,7 +5,7 @@ library(dplyr)
 library(ggplot2)
 library(futile.logger)
 # FINAL ENERGY CONSUMPTION IN INDUSTRY
-source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/outputs.R"))
 source(path(getwd(), "scripts/0_support/year_selection.R"))
 source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
 source(path(getwd(), "scripts/0_support/mapping_products.R"))
@@ -104,7 +104,7 @@ industry_GVA_final <- function(
     first_year_chart <- industry_GVA_base_year(country = country_chart, first_year = first_year)
     last_year_chart <- industry_GVA_last_year(country = country_chart, final_year = last_year)
 
-    flog.info(paste("Prepare the charts for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
+    flog.info(paste("Prepare the charts and data for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
     flog.info(paste("Saved in", output_path))
 
     tryCatch(
@@ -173,38 +173,37 @@ industry_GVA_final <- function(
         flog.error("Error preparing final effects charts: ", e)
       }
     )
-  }
-  if (country == "EU27") {
-    output_path <- paste0(chart_path, "/EU27/")
-    flog.info(paste("Prepare the charts for EU27 (", first_year_chart, "-", last_year_chart, ")"))
-    flog.info(paste("Saved in", output_path))
+    if (country_chart == "EU27") {
+      output_path <- paste0(chart_path, "/EU27/")
+      flog.info(paste("Additional charts and data for EU27 (", first_year_chart, "-", last_year_chart, ")"))
 
-    tryCatch(
-      {
-        generate_coverage_chart(
-          industry_GVA_final_complete,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing coverage charts: ", e)
-      }
-    )
-    
-    tryCatch(
-      {
-        generate_eu_comparison_chart(
-          industry_GVA_final_full,
-          first_year_chart = first_year_chart,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing eu comparison charts: ", e)
-      }
-    )
+      tryCatch(
+        {
+          generate_coverage_chart(
+            industry_GVA_final_complete,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing coverage charts: ", e)
+        }
+      )
+      
+      tryCatch(
+        {
+          generate_eu_comparison_chart(
+            industry_GVA_final_full,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing eu comparison charts: ", e)
+        }
+      )
+    }
   }
 }
 
@@ -481,10 +480,10 @@ generate_country_charts <- function(
       share_energy_consumption = round(share_energy_consumption, 2)
     )
 
-  write.csv(
+  save_data(
     table_industry_GVA_final_country_data,
-    paste0(output_path, "Part1_sector.csv"),
-    row.names = FALSE
+    filename="Part1_sector.csv",
+    output_path=output_path
   )
 
   # Energy consumption by subsector
@@ -959,9 +958,10 @@ generate_energy_breakdown_charts <- function(
       share_energy_consumption = round(share_energy_consumption, 3)
     )
 
-  write.csv(table_industry_energy_breakdown_filtered,
-    paste0(output_path, "Part1_fuel.csv"),
-    row.names = FALSE
+  save_data(
+    table_industry_energy_breakdown_filtered,
+    filename="Part1_fuel.csv",
+    output_path=output_path
   )
 
   # Final energy consumption by fuel
@@ -1158,9 +1158,10 @@ generate_final_effects_charts <- function(
       )
     )
 
-  write.csv(industry_GVA_final_Waterfall_data,
-    paste0(output_path, "Part1_waterfall.csv"),
-    row.names = FALSE
+  save_data(
+    industry_GVA_final_Waterfall_data,
+    filename="Part1_waterfall.csv",
+    output_path=output_path
   )
 
   p <- industry_GVA_final_Waterfall_data %>%
@@ -1178,8 +1179,8 @@ generate_final_effects_charts <- function(
       text = element_text(size = 15)
     ) +
     scale_y_continuous(labels = scales::number) +
-    ylab("Energy consumption level and effect (PJ)") +
-    scale_x_discrete(labels = levels_waterfall)
+    ylab("Energy consumption level and effect (PJ)") #+
+    #scale_x_discrete(labels = levels_waterfall)
 
   print_chart(p,
     filename = paste0(country_chart, "_Figure05.jpg"),
@@ -1222,9 +1223,10 @@ generate_final_effects_charts <- function(
     )) %>%
     arrange(measure)
 
-  write.csv(industry_GVA_final_intensity_effect,
-    paste0(output_path, "Part1_intensity_effect.csv"),
-    row.names = FALSE
+  save_data(
+    industry_GVA_final_intensity_effect,
+    filename="Part1_intensity_effect.csv",
+    output_path=output_path
   )
 
   # Plot the intensity effect as area chart
@@ -1309,9 +1311,10 @@ generate_coverage_chart <- function(
     group_by(geo, time) %>%
     summarize(missing = sum(missing))
 
-  write.csv(missing_data,
-    paste0(output_path, "Part1_missing_data.csv"),
-    row.names = FALSE
+  save_data(
+    missing_data,
+    filename="Part1_missing_data.csv",
+    output_path=output_path
   )
 
   p <- missing_data %>%
@@ -1362,9 +1365,10 @@ generate_eu_comparison_chart <- function(
     merge(eu_countries, by.x = "geo", by.y = "code") %>%
     select(-c("geo", "label"))
 
-  write.csv(EU_comparison,
-    paste0(output_path, "Part1_EU27.csv"),
-    row.names = FALSE
+  save_data(
+    EU_comparison,
+    filename="Part1_EU27.csv",
+    output_path=output_path
   )
 
 

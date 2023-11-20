@@ -5,7 +5,7 @@ library(dplyr)
 library(ggplot2)
 library(futile.logger)
 # FINAL ENERGY CONSUMPTION IN TRANSPORT
-source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/outputs.R"))
 source(path(getwd(), "scripts/0_support/year_selection.R"))
 source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
 source(path(getwd(), "scripts/0_support/mapping_products.R"))
@@ -108,7 +108,7 @@ transport_final <- function(
     first_year_chart <- transport_base_year(country = country_chart, first_year = first_year)
     last_year_chart <- transport_last_year(country = country_chart, final_year = last_year)
 
-    flog.info(paste("Prepare the charts for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
+    flog.info(paste("Prepare the charts and data for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
     flog.info(paste("Saved in", output_path))
 
     tryCatch(
@@ -183,39 +183,38 @@ transport_final <- function(
         flog.error("Error preparing final effects charts: ", e)
       }
     )
-  }
 
-  if (country == "EU27") {
-    output_path <- paste0(chart_path, "/EU27/")
-    flog.info(paste("Prepare the charts for EU27 (", first_year_chart, "-", last_year_chart, ")"))
-    flog.info(paste("Saved in", output_path))
+    if (country_chart == "EU27") {
+      output_path <- paste0(chart_path, "/EU27/")
+      flog.info(paste("Additional charts and data for EU27 (", first_year_chart, "-", last_year_chart, ")"))
 
-    tryCatch(
-      {
-        generate_coverage_chart(
-          transport_complete,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing coverage charts: ", e)
-      }
-    )
+      tryCatch(
+        {
+          generate_coverage_chart(
+            transport_complete,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing coverage charts: ", e)
+        }
+      )
 
-    tryCatch(
-      {
-        generate_eu_comparison_chart(
-          transport_full,
-          first_year_chart = first_year_chart,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing eu comparison charts: ", e)
-      }
-    )
+      tryCatch(
+        {
+          generate_eu_comparison_chart(
+            transport_full,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing eu comparison charts: ", e)
+        }
+      )
+    }
   }
 }
 
@@ -238,7 +237,10 @@ prepare_energy_product_breakdown <- function(
       unit == "TJ"
     ) %>%
     group_by(geo, time, siec) %>%
-    summarise(values = sum(values, na.rm = TRUE)) %>%
+    summarise(
+      values = sum(values, na.rm = TRUE),
+      .groups = "drop_last"
+      ) %>%
     ungroup() %>%
     # reshape to wide
     pivot_wider(
@@ -601,7 +603,8 @@ add_total_sectors <- function(df) {
       energy_consumption = sum(energy_consumption, na.rm = TRUE),
       # the sum of shares should be one, calculated here for checking
       share_VKM = sum(share_VKM, na.rm = TRUE),
-      share_energy_consumption = sum(share_energy_consumption, na.rm = TRUE)
+      share_energy_consumption = sum(share_energy_consumption, na.rm = TRUE),
+      .groups = "drop_last"
     ) %>%
     ungroup() %>%
     mutate(mode = "Total")
@@ -706,7 +709,8 @@ apply_LMDI <- function(df) {
       # By keeping the mean figure when only one exist across all modes
       energy_consumption_var_obs = mean(value_delta_energy_consumption_total),
       value_energy_consumption_total_baseline = mean(value_energy_consumption_total_baseline),
-      value_energy_consumption_total_end = mean(value_energy_consumption_total_end)
+      value_energy_consumption_total_end = mean(value_energy_consumption_total_end),
+      .groups = "drop_last"
     ) %>%
     ungroup() %>%
     # For checking purposes, recalculate the total energy consumption calculated as the sum of the effects
@@ -752,10 +756,10 @@ generate_country_charts <- function(
       share_energy_consumption = round(share_energy_consumption, 2)
     )
 
-  write.csv(
+  save_data(
     table_transport_country_data,
-    paste0(output_path, "Part5_mode.csv"),
-    row.names = FALSE
+    filename = "Part5_mode.csv",
+    output_path = output_path
   )
 
   # energy consumption and VKM by mode
@@ -1178,10 +1182,10 @@ generate_energy_breakdown_charts <- function(
       share_energy_consumption = round(share_energy_consumption, 3)
     )
 
-  write.csv(
+  save_data(
     table_transport_energy_breakdown_filtered,
-    paste0(output_path, "Part5_fuel.csv"),
-    row.names = FALSE
+    filename = "Part5_fuel.csv",
+    output_path = output_path
   )
 
   # Final energy consumption by fuel
@@ -1383,10 +1387,12 @@ generate_final_effects_charts <- function(
       )
     )
 
-  write.csv(transport_Waterfall_data,
-    paste0(output_path, "Part5_waterfall.csv"),
-    row.names = FALSE
+  save_data(
+    transport_Waterfall_data,
+    filename = "Part5_waterfall.csv",
+    output_path = output_path
   )
+
 
   p <- transport_Waterfall_data %>%
     filter(x != Result_label) %>%
@@ -1403,8 +1409,8 @@ generate_final_effects_charts <- function(
       text = element_text(size = 15)
     ) +
     scale_y_continuous(labels = scales::number) +
-    ylab("Energy consumption level and effect (PJ)") +
-    scale_x_discrete(labels = levels_waterfall)
+    ylab("Energy consumption level and effect (PJ)") #+
+    #scale_x_discrete(labels = levels_waterfall)
 
   print_chart(p,
     filename = paste0(country_chart, "_Figure29.jpg"),
@@ -1447,9 +1453,10 @@ generate_final_effects_charts <- function(
     )) %>%
     arrange(measure)
 
-  write.csv(transport_intensity_effect_data,
-    paste0(output_path, "Part5_intensity_effect.csv"),
-    row.names = FALSE
+  save_data(
+    transport_intensity_effect_data,
+    filename = "Part5_intensity_effect.csv",
+    output_path = output_path
   )
 
   # Plot the intensity effect as area chart
@@ -1513,7 +1520,7 @@ generate_final_effects_charts <- function(
 
 
 generate_coverage_chart <- function(
-    economy_emp_final_complete,
+    transport_complete,
     last_year_chart,
     output_path) {
   # Data coverage chart
@@ -1535,11 +1542,15 @@ generate_coverage_chart <- function(
     ) %>%
     select(-c("energy_consumption", "VKM")) %>%
     group_by(geo, time) %>%
-    summarize(missing = sum(missing))
+    summarize(
+      missing = sum(missing),
+      .groups = "drop_last"
+      )
 
-  write.csv(missing_data,
-    paste0(output_path, "Part5_missing_data.csv"),
-    row.names = FALSE
+  save_data(
+    missing_data,
+    filename = "Part5_missing_data.csv",
+    output_path = output_path
   )
 
   p <- missing_data %>%
@@ -1591,11 +1602,10 @@ generate_eu_comparison_chart <- function(
     merge(eu_countries, by.x = "geo", by.y = "code") %>%
     select(-c("geo", "label"))
 
-  write.csv(
-    transport_intensity_EU_comparison_data %>%
-      mutate(value = value * 1000000),
-    paste0(output_path, "Part4_EU27.csv"),
-    row.names = FALSE
+  save_data(
+    transport_intensity_EU_comparison_data %>% mutate(value = value * 1000000),
+    filename = "Part5_EU27.csv",
+    output_path = output_path
   )
 
   # Rank the countries by intensity on last year

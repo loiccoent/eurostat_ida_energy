@@ -5,7 +5,7 @@ library(dplyr)
 library(ggplot2)
 library(futile.logger)
 # FULL ENERGY CONSUMPTION
-source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/outputs.R"))
 source(path(getwd(), "scripts/0_support/year_selection.R"))
 source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
 source(path(getwd(), "scripts/0_support/mapping_colors.R"))
@@ -43,7 +43,6 @@ full_energy_final <- function(first_year,
     country_list = country_list
   )
 
-
   ### CHARTS ###
 
   if (country == "all") {
@@ -61,7 +60,7 @@ full_energy_final <- function(first_year,
     first_year_chart <- full_sector_base_year(country = country_chart, first_year = first_year)
     last_year_chart <- full_sector_last_year(country = country_chart, final_year = last_year)
 
-    flog.info(paste("Prepare the charts for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
+    flog.info(paste("Prepare the charts and data for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
     flog.info(paste("Saved in", output_path))
     # Energy consumption by subsector
 
@@ -235,7 +234,11 @@ generate_table_full_energy_context <- function(
     filter(geo == country_chart) %>%
     mutate(values = round(values, 1))
 
-  write.csv(table_full_energy_context, paste0(output_path, "Context.csv"), row.names = FALSE)
+  save_data(
+    table_full_energy_context,
+    filename="Context.csv",
+    output_path=output_path
+  )
 }
 
 generate_full_energy_breakdown_charts <- function(
@@ -255,7 +258,11 @@ generate_full_energy_breakdown_charts <- function(
       share_energy_consumption = round(share_energy_consumption, 3)
     )
 
-  write.csv(table_full_energy_breakdown, paste0(output_path, "Intro.csv"), row.names = FALSE)
+  save_data(
+    table_full_energy_breakdown,
+    filename="Intro.csv",
+    output_path=output_path
+  )
 
   full_energy_breakdown_filtered_data <-
     full_energy_breakdown %>%

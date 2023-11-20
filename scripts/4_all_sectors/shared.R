@@ -71,7 +71,7 @@ prepare_energy_product_breakdown <- function(
       unit == "TJ"
     ) %>%
     group_by(geo, time, siec) %>%
-    summarise(values = sum(values, na.rm = TRUE)) %>%
+    summarise(values = sum(values, na.rm = TRUE), .groups = "drop_last") %>%
     ungroup() %>%
     # reshape to wide
     pivot_wider(

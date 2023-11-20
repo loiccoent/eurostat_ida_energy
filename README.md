@@ -9,8 +9,35 @@ The tool described here is the last deliverable in the Eurostat project “energ
 - decomposition of the final energy consumption in the industry sector, based on traffic.
 The document will succinctly describe how the project is organized, how the different operations are run, and how the user should maintain the different parts in order to use it again for future cycles of data collection.
 
+## How to run
+Once the project has been saved on a computer, the easiest way is to : 
+- open the project in an R-compatible IDE (e.g. R studio)
+- open the file run.R in the editor
+- on the first run, some of the packages used might have to be installed in your local R instance. TO do so, simply uncomment the lines (remove the #) starting with “install.packages(…)” on top of the script. This will install all the required libraries and later they will only be called by the script, so you can comment them back (add the #) right after the first run to save time on future runs.
+- If you only want to perform a part of the actions, open and edit the file config.yml to select what you want to do
+- If ready to run everything, simply select the file run.R and select source (the editor might have a play symbol)
+- Let the process run and see the information printed in the console.
+
+
 ## Project organisation
+### Parameters
+Use the file config.yml to specify all the main parameters of the process: 
+- country: country to show in charts (write "all" to run all countries + EU27)
+- year:
+    - first: earliest year covered
+    - last: latest year covered
+- actions:
+    - download: download raw data, False: use existing data
+    - clear: clears existing charts, False: only replace the ones generated
+    - context: Generate context data (Part 1)
+    - industry_GVA_final: Run the decomposition of the final energy consumption in the industry sector, based on GVA
+    - industry_GVA_primary: Run the decomposition of the primary energy consumption in the industry sector, based on GVA
+    - economy_emp_final: Run the decomposition of the final energy consumption in the different economy sector, based on employment
+    - household_final: Run the decomposition of the final energy consumption in the residential sector
+    - transport_final: Run the decomposition of the final energy consumption in the industry sector, based on VKM
+
 ### Data:
+The data folder will appear as the script stores the data.
 - raw: where the data extracted from Eurostat is stored as .rda data file (filled by the data_download.R script)
 - output: Where the charts and csv data are be stored after processing 
     - AT: country folder (receives charts (.jpg) and tables (.csv))
@@ -18,8 +45,9 @@ The document will succinctly describe how the project is organized, how the diff
     - ...
 
 ### Scripts:
+Main scripts and their location:
 - 0_support
-    - clear_folders.R: used to empty the output folders
+    - o	folders_management.R: procedures used to empty the output folders / create them if needed
     - data_download.R: functions to load all the data required from Eurostat
     - data_load.R: functions to load the previously downloaded Eurostat data files
     - manual_corrections.R: corrections to be applied for specific decomposition, country, sector and year
@@ -27,7 +55,7 @@ The document will succinctly describe how the project is organized, how the diff
     - mapping_products.R: list of product for each aggregates
     - mapping_sectors.R: list of sectors for each aggregates
     - parameters.R: functions that reads the config file and set the corresponding parameters
-    - print_charts.R: function to save charts in the output folder
+    - outputs.R: functions to save charts and data files in the output folder
     - year_selection.R: used ot set country specific first and last years
 - 1_industry
     - 1a_industry_gva_final.R: Decomposition of final energy consumption in manufacturing industry
@@ -60,7 +88,7 @@ and in the residential sector decomposition due to the higher number of effects)
         - Prepare Energy consumption by fuel (not part of the decomposition but used for some charts)
         - Prepare energy consumption by end use
         - Prepare activity data by end use
-        - Joining the two datasets (by country, year and end use)
+        - Joining the energy consumption and activity datasets (by country, year and end use)
         - Filter out sectors with incomplete data
     - EFFECTS CALCULATION:
         - Calculate the required indicators for the calculation:
@@ -85,11 +113,11 @@ and in the residential sector decomposition due to the higher number of effects)
     - filter_sectors (e.g. filter_industry_gva). Detects sectors for which, for a year at least, either activity is missing or there is no energy consumption despite some activity reported. If so, excludes the sector for the entire series (check sectors for specificities, due to the number of missing data, the transport sector rule is different and only checks the first and last year)
 
 ### Logging
-Logging to console is used through the process to inform the user of the coming operations (flag INFO), of data exclusion (flag WARN) and of potential erros (flag ERROR). This logs should be checked as part of the output to ensure the process ran as expected
+Logging to console is used through the process to inform the user of the coming operations (flag INFO), of data exclusion (flag WARN) and of potential errors (flag ERROR). These logs should be checked as part of the output to ensure the process ran as expected.
 
 ### Error handling
-Error handling has been implemented to facilate use of the project. In summary, in case of error, the process will attempt to resume to next where possible. Based on the structure above it can be seen that:
-- If one of the chart function does not go through, an error will be printed to console and the next chart function in the current decomposition (if any) will start.
+Error handling has been implemented to facilitate use of the project. In summary, in case of error, the process will attempt to resume where possible. Based on the structure above it can be seen that:
+- If one of the chart functions does not go through, an error will be printed to console and the next chart function in the current decomposition (if any) will start.
 - If the error occur in the data preparation, the error will be caught at the higher level, because the chart cannot be generated without the base data. In consequence, an error will be printed to console and the next decomposition script (if any) will be triggered.
 
 

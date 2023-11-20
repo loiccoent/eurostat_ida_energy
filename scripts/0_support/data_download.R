@@ -3,7 +3,100 @@ library(tidyr)
 library(dplyr)
 library(futile.logger)
 
+source(path(getwd(), "scripts/0_support/folders_management.R"))
+
 # THIS SCRIPT SHOULD ONLY BE RUN WHEN UPDATING THE EUROSTAT DATA
+
+# Retrieve data
+download_eurostat_data <- function(
+    first_year,
+    last_year,
+    data_path) {
+  flog.info("Update the eurostat databases")
+  create_folder_if_not_exists(data_path)
+  tryCatch(
+    {
+      update_nrg_bal_c(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from nrg_bal_c: ", e)
+    }
+  )
+  tryCatch(
+    {
+      update_nama_10_a64(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from nama_10_a64: ", e)
+    }
+  )
+  tryCatch(
+    {
+      update_nama_10_a10_e(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from nama_10_a10_e: ", e)
+    }
+  )
+
+  tryCatch(
+    {
+      update_nrg_d_hhq(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from nrg_d_hhq: ", e)
+    }
+  )
+
+  tryCatch(
+    {
+      update_nrg_chdd_a(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from nrg_chdd_a: ", e)
+    }
+  )
+  tryCatch(
+    {
+      update_demo_gind(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from demo_gind: ", e)
+    }
+  )
+  tryCatch(
+    {
+      update_ilc_lvph01(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from ilc_lvph01: ", e)
+    }
+  )
+  tryCatch(
+    {
+      update_road_tf_vehmov(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from road_tf_vehmov: ", e)
+    }
+  )
+  tryCatch(
+    {
+      update_rail_tf_trainmv(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from rail_tf_trainmv: ", e)
+    }
+  )
+  tryCatch(
+    {
+      update_iww_tf_vetf(first_year, last_year, data_path)
+    },
+    error = function(e) {
+      flog.error("Error in updating data from iww_tf_vetf: ", e)
+    }
+  )
+}
 
 retrieve_eurostat_data <- function(
     id,
@@ -301,95 +394,5 @@ update_iww_tf_vetf <- function(
     file = paste(data_path, "/iww_tf_vetf.Rda",
       sep = ""
     )
-  )
-}
-
-# Retrieve data
-download_eurostat_data <- function(
-    first_year,
-    last_year,
-    data_path) {
-      flog.info("Update the eurostat databases")
-  tryCatch(
-    {
-      update_nrg_bal_c(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from nrg_bal_c: ", e)
-    }
-  )
-  tryCatch(
-    {
-      update_nama_10_a64(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from nama_10_a64: ", e)
-    }
-  )
-  tryCatch(
-    {
-      update_nama_10_a10_e(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from nama_10_a10_e: ", e)
-    }
-  )
-
-  tryCatch(
-    {
-      update_nrg_d_hhq(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from nrg_d_hhq: ", e)
-    }
-  )
-
-  tryCatch(
-    {
-      update_nrg_chdd_a(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from nrg_chdd_a: ", e)
-    }
-  )
-  tryCatch(
-    {
-      update_demo_gind(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from demo_gind: ", e)
-    }
-  )
-  tryCatch(
-    {
-      update_ilc_lvph01(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from ilc_lvph01: ", e)
-    }
-  )
-  tryCatch(
-    {
-      update_road_tf_vehmov(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from road_tf_vehmov: ", e)
-    }
-  )
-  tryCatch(
-    {
-      update_rail_tf_trainmv(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from rail_tf_trainmv: ", e)
-    }
-  )
-  tryCatch(
-    {
-      update_iww_tf_vetf(first_year, last_year, data_path)
-    },
-    error = function(e) {
-      flog.error("Error in updating data from iww_tf_vetf: ", e)
-    }
   )
 }

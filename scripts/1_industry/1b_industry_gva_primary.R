@@ -5,7 +5,7 @@ library(dplyr)
 library(ggplot2)
 library(futile.logger)
 # PRIMARY ENERGY CONSUMPTION IN INDUSTRY
-source(path(getwd(), "scripts/0_support/print_charts.R"))
+source(path(getwd(), "scripts/0_support/outputs.R"))
 source(path(getwd(), "scripts/0_support/year_selection.R"))
 source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
 source(path(getwd(), "scripts/0_support/mapping_products.R"))
@@ -126,7 +126,7 @@ industry_GVA_primary <- function(
     first_year_chart <- industry_GVA_base_year(country = country_chart, first_year = first_year)
     last_year_chart <- industry_GVA_last_year(country = country_chart, final_year = last_year)
 
-    flog.info(paste("Prepare the charts for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
+    flog.info(paste("Prepare the charts and data for", country_name, "(", first_year_chart, "-", last_year_chart, ")"))
     flog.info(paste("Saved in", output_path))
 
     tryCatch(
@@ -227,38 +227,37 @@ industry_GVA_primary <- function(
         flog.error("Error preparing primary effect charts: ", e)
       }
     )
-  }
 
-  if (country == "EU27") {
-    output_path <- paste0(chart_path, "/EU27/")
-    flog.info(paste("Prepare the charts for EU27 (", first_year_chart, "-", last_year_chart, ")"))
-    flog.info(paste("Saved in", output_path))
+    if (country_chart == "EU27") {
+      output_path <- paste0(chart_path, "/EU27/")
+      flog.info(paste("Additional charts and data for EU27 (", first_year_chart, "-", last_year_chart, ")"))
 
-    tryCatch(
-      {
-        generate_coverage_chart(
-          industry_GVA_primary_complete,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing coverage charts: ", e)
-      }
-    )
-    tryCatch(
-      {
-        generate_eu_comparison_chart(
-          energy_EHG_TJ,
-          first_year_chart = first_year_chart,
-          last_year_chart = last_year_chart,
-          output_path = output_path
-        )
-      },
-      error = function(e) {
-        flog.error("Error preparing eu comparison charts: ", e)
-      }
-    )
+      tryCatch(
+        {
+          generate_coverage_chart(
+            industry_GVA_primary_complete,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing coverage charts: ", e)
+        }
+      )
+      tryCatch(
+        {
+          generate_eu_comparison_chart(
+            energy_EHG_TJ,
+            first_year_chart = first_year_chart,
+            last_year_chart = last_year_chart,
+            output_path = output_path
+          )
+        },
+        error = function(e) {
+          flog.error("Error preparing eu comparison charts: ", e)
+        }
+      )
+    }
   }
 }
 
@@ -579,7 +578,8 @@ prepare_energy_consumption <- function(
     group_by(geo, time, sector) %>%
     summarize(
       final_energy_consumption = sum(final_energy_consumption, na.rm = TRUE),
-      primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE)
+      primary_energy_consumption = sum(primary_energy_consumption, na.rm = TRUE),
+      .groups = "drop_last"
     ) %>%
     ungroup()
 }
@@ -693,7 +693,8 @@ add_total_sectors <- function(df) {
       # the sum of shares should be one, calculated here for checking
       share_GVA = sum(share_GVA, na.rm = TRUE),
       share_primary_energy_consumption = sum(share_primary_energy_consumption, na.rm = TRUE),
-      share_final_energy_consumption = sum(share_final_energy_consumption, na.rm = TRUE)
+      share_final_energy_consumption = sum(share_final_energy_consumption, na.rm = TRUE),
+      .groups = "drop_last"
     ) %>%
     ungroup() %>%
     mutate(sector = "Total")
@@ -815,7 +816,8 @@ apply_LMDI <- function(df) {
       # By keeping the mean figure when only one exist across all subsectors
       primary_energy_consumption_var_obs = mean(value_delta_primary_energy_consumption_total),
       value_primary_energy_consumption_total_baseline = mean(value_primary_energy_consumption_total_baseline),
-      value_primary_energy_consumption_total_end = mean(value_primary_energy_consumption_total_end)
+      value_primary_energy_consumption_total_end = mean(value_primary_energy_consumption_total_end),
+      .groups = "drop_last"
     ) %>%
     ungroup() %>%
     # For checking purposes, recalculate the total energy consumption calculated as the sum of the effects
@@ -863,10 +865,10 @@ generate_country_charts <- function(
       share_primary_energy_consumption = round(share_primary_energy_consumption, 2)
     )
 
-  write.csv(
+  save_data(
     table_industry_GVA_primary_country_data,
-    paste0(output_path, "Part2_sector.csv"),
-    row.names = FALSE
+    filename="Part2_sector.csv",
+    output_path=output_path
   )
 
   # Primary energy consumption by subsector
@@ -1247,8 +1249,13 @@ generate_ele_heat_share_primary_charts <- function(
     filter(geo == country_chart) %>%
     mutate(share_EHG = round(share_EHG, 3))
 
-  write.csv(table_ele_heat_share_primary_filtered, paste0(output_path, "Part2_share.csv"), row.names = FALSE)
+  save_data(
+    table_ele_heat_share_primary_filtered,
+    filename="Part2_share.csv",
+    output_path=output_path
+  )
 }
+
 
 generate_input_ele_heat_production_charts <- function(
     ele_heat_input_breakdown,
@@ -1270,7 +1277,11 @@ generate_input_ele_heat_production_charts <- function(
       share_energy_input = round(share_energy_input, 3)
     )
 
-  write.csv(table_ele_heat_input_breakdown_filtered, paste0(output_path, "Part2_fuel.csv"), row.names = FALSE)
+  save_data(
+    table_ele_heat_input_breakdown_filtered,
+    filename="Part2_fuel.csv",
+    output_path=output_path
+  )
 
   # Breakdown of electricity and heat input by fuel
 
@@ -1598,8 +1609,8 @@ generate_primary_effects_charts <- function(
       text = element_text(size = 15)
     ) +
     scale_y_continuous(labels = scales::number) +
-    ylab("Energy consumption level and effect (PJ)") +
-    scale_x_discrete(labels = levels_waterfall)
+    ylab("Energy consumption level and effect (PJ)") #+
+    #scale_x_discrete(labels = levels_waterfall)
 
   print_chart(p,
     filename = paste0(country_chart, "_Figure11.jpg"),
@@ -1724,7 +1735,9 @@ generate_coverage_chart <- function(
     ) %>%
     select(-c("primary_energy_consumption", "GVA")) %>%
     group_by(geo, time) %>%
-    summarize(missing = sum(missing)) %>%
+    summarize(
+      missing = sum(missing),
+      .groups = "drop_last") %>%
     ggplot(aes(
       x = reorder(geo, desc(geo)),
       y = factor(time),
