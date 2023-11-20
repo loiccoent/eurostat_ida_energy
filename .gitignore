@@ -49,7 +49,7 @@ po/*~
 rsconnect/
 
 # Data files
-data/raw/
+/data/raw/*
 
 # Output files
 *.jpg
