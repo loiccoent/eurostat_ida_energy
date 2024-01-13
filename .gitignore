@@ -48,10 +48,12 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+# Used for vscode
+*.vscode
+
 # Data files
-/data/raw/*
+/data/*
 
 # Output files
-*.Rda
 *.jpg
 *.csv
