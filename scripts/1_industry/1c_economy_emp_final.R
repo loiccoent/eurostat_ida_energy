@@ -5,13 +5,13 @@ library(dplyr)
 library(ggplot2)
 library(futile.logger)
 # FINAL ENERGY CONSUMPTION IN ECONOMY
-source(path(getwd(), "scripts/0_support/outputs.R"))
-source(path(getwd(), "scripts/0_support/year_selection.R"))
-source(path(getwd(), "scripts/0_support/mapping_sectors.R"))
-source(path(getwd(), "scripts/0_support/mapping_products.R"))
-source(path(getwd(), "scripts/0_support/mapping_colors.R"))
-source(path(getwd(), "scripts/0_support/manual_corrections.R"))
-source(path(getwd(), "scripts/4_all_sectors/shared.R"))
+source("scripts/0_support/outputs.R")
+source("scripts/0_support/year_selection.R")
+source("scripts/0_support/mapping_sectors.R")
+source("scripts/0_support/mapping_products.R")
+source("scripts/0_support/mapping_colors.R")
+source("scripts/0_support/manual_corrections.R")
+source("scripts/4_all_sectors/shared.R")
 
 # Data preparation
 economy_emp_final <- function(

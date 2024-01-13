@@ -52,5 +52,6 @@ rsconnect/
 /data/raw/*
 
 # Output files
+*.Rda
 *.jpg
 *.csv

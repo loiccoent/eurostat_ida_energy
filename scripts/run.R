@@ -32,9 +32,8 @@ library(waterfalls)
 library("ggpubr")
 
 rm()
-setwd(path(here()))
 # Source parameters
-source(path(getwd(), "scripts/0_support/parameters.R"))
+source("scripts/0_support/parameters.R")
 flog.info("Starting processing for:")
 flog.info(paste("  Country: ", country))
 flog.info(paste("  First year: ", first_year))
@@ -67,19 +66,19 @@ if (run_transport_final) {
 
 # If requested, download all the data from Eurostat website
 if (download) {
-  source(path(getwd(), "scripts/0_support/data_download.R"))
+  source("scripts/0_support/data_download.R")
   download_eurostat_data(first_year, last_year, data_path)
 }
 # If requested, clean the folder first
 if (clear) {
-  source(path(getwd(), "scripts/0_support/folders_management.R"))
+  source("scripts/0_support/folders_management.R")
   clear_all(country, output_path)
 }
 # If requested, calculate all the required indicators, Generate the charts by country
 if (run_context) {
   tryCatch(
     {
-      source(path(getwd(), "scripts/4_all_sectors/full_energy.R"))
+      source("scripts/4_all_sectors/full_energy.R")
       full_energy_final(first_year, last_year, country, data_path, output_path)
     },
     error = function(e) {
@@ -90,7 +89,7 @@ if (run_context) {
 if (run_industry_GVA_final) {
   tryCatch(
     {
-      source(path(getwd(), "scripts/1_industry/1a_industry_gva_final.R"))
+      source("scripts/1_industry/1a_industry_gva_final.R")
       industry_GVA_final(first_year, last_year, country, data_path, output_path)
     },
     error = function(e) {
@@ -101,7 +100,7 @@ if (run_industry_GVA_final) {
 if (run_industry_GVA_primary) {
   tryCatch(
     {
-      source(path(getwd(), "scripts/1_industry/1b_industry_gva_primary.R"))
+      source("scripts/1_industry/1b_industry_gva_primary.R")
       industry_GVA_primary(first_year, last_year, country, data_path, output_path)
     },
     error = function(e) {
@@ -112,7 +111,7 @@ if (run_industry_GVA_primary) {
 if (run_economy_emp_final) {
   tryCatch(
     {
-      source(path(getwd(), "scripts/1_industry/1c_economy_emp_final.R"))
+      source("scripts/1_industry/1c_economy_emp_final.R")
       economy_emp_final(first_year, last_year, country, data_path, output_path)
     },
     error = function(e) {
@@ -123,7 +122,7 @@ if (run_economy_emp_final) {
 if (run_household_final) {
   tryCatch(
     {
-      source(path(getwd(), "scripts/2_household/households.R"))
+      source("scripts/2_household/households.R")
       household_final(first_year, last_year, country, data_path, output_path)
     },
     error = function(e) {
@@ -134,7 +133,7 @@ if (run_household_final) {
 if (run_transport_final) {
   tryCatch(
     {
-      source(path(getwd(), "scripts/3_transport/transport_vkm.R"))
+      source("scripts/3_transport/transport_vkm.R")
       transport_final(first_year, last_year, country, data_path, output_path)
     },
     error = function(e) {

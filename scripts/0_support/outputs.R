@@ -1,6 +1,6 @@
 library(futile.logger)
 
-source(path(getwd(), "scripts/0_support/folders_management.R"))
+source("scripts/0_support/folders_management.R")
 
 print_chart <- function(p,
                         filename,

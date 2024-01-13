@@ -24,5 +24,5 @@ run_household_final <- config$actions$household_final
 run_transport_final <- config$actions$transport_final
 
 # Set paths
-data_path <- path(getwd(), "data/raw")
-output_path <- path(getwd(), "data/output")
+data_path <- "data"
+output_path <- "output"

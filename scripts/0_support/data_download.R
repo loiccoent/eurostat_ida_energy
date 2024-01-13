@@ -3,7 +3,7 @@ library(tidyr)
 library(dplyr)
 library(futile.logger)
 
-source(path(getwd(), "scripts/0_support/folders_management.R"))
+source("scripts/0_support/folders_management.R")
 
 # THIS SCRIPT SHOULD ONLY BE RUN WHEN UPDATING THE EUROSTAT DATA
 
