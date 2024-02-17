@@ -416,7 +416,7 @@ prepare_activity <- function(
       # to last year
       time <= last_year,
       # work with total road vehicles on national territory (goods + passenger), in million VKM
-      regisveh %in% c("D001", "D002"),
+      regisveh %in% c("TERNAT_REG", "TERNAT_REGNAT"),
       vehicle == "TOTAL",
       unit == "MIO_VKM"
     ) %>%
@@ -424,8 +424,8 @@ prepare_activity <- function(
       names_from = regisveh,
       values_from = values
     ) %>%
-    mutate(values = ifelse(is.na(D001), D002, D001)) %>%
-    select(-c("D001", "D002")) %>%
+    mutate(values = ifelse(is.na(TERNAT_REG), TERNAT_REGNAT, TERNAT_REG)) %>%
+    select(-c("TERNAT_REG", "TERNAT_REGNAT")) %>%
     # convert all figures to vkm, add mode
     mutate(
       VKM = values * 1000000,

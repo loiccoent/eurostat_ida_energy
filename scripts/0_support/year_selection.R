@@ -74,6 +74,7 @@ transport_base_year <- function(country, first_year) {
     country == "BE" ~ 2013,
     country == "DE" ~ 2013,
     country == "DK" ~ 2013,
+    country == "FR" ~ 2013,
     country == "EE" ~ 2013,
     country == "HU" ~ 2013,
     country == "IE" ~ 2013,

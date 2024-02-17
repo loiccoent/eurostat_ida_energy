@@ -102,12 +102,20 @@ retrieve_eurostat_data <- function(
     id,
     first_year,
     last_year) {
-  get_eurostat(id = id, time_format = "num") %>%
+  data <- get_eurostat(id = id, time_format = "num") %>%
+    rename(time = TIME_PERIOD) %>%
     filter(
       geo %in% eu27$code,
       time >= first_year,
       time <= last_year
     )
+  
+  if ("freq" %in% colnames(data)){
+    data <- data %>%
+      filter(freq == "A" ) %>%
+      subset(select = -freq)
+  }
+  data
 }
 
 add_EU_27_sum <- function(
@@ -250,17 +258,22 @@ update_nrg_chdd_a <- function(
     id = "nrg_chdd_a",
     time_format = "num"
   ) %>%
+    rename(time = TIME_PERIOD) %>%
     # Keep all years for now (used to calculate the baseline)
-    filter(geo %in% eu27$code)
+    filter(geo %in% eu27$code) %>%
+    filter(freq == "A" ) %>%
+    subset(select = -freq)
   # Add the EU27 total and save the dataframe for later use
   nrg_chdd_a <- nrg_chdd_a %>%
-    add_EU_27_mean(c("unit", "indic_nrg", "time")) %>%
-    save(
-      nrg_chdd_a,
-      file = paste(data_path, "/nrg_chdd_a.Rda",
-        sep = ""
-      )
+    add_EU_27_mean(c("unit", "indic_nrg", "time"))
+  
+  
+  save(
+    nrg_chdd_a,
+    file = paste(data_path, "/nrg_chdd_a.Rda",
+      sep = ""
     )
+  )
 }
 
 update_demo_gind <- function(
